@@ -1,0 +1,43 @@
+{
+    "packages": [
+        {
+            "name": "codewing-solutions/wptravelengine-pro-config",
+            "version": "dev-main",
+            "version_normalized": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "git@github.com:Codewing-Solutions/wptravelengine-pro-config.git",
+                "reference": "0a6f69c6b34ece930a5eb40080ce2e66c778b026"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Codewing-Solutions/wptravelengine-pro-config/zipball/0a6f69c6b34ece930a5eb40080ce2e66c778b026",
+                "reference": "0a6f69c6b34ece930a5eb40080ce2e66c778b026",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.4"
+            },
+            "time": "2025-01-08T08:29:00+00:00",
+            "default-branch": true,
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "CodewingSolutions\\WPTravelEnginePro\\": "src/"
+                },
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "description": "A configuration package for WP Travel Engine Pro.",
+            "support": {
+                "source": "https://github.com/Codewing-Solutions/wptravelengine-pro-config/tree/main",
+                "issues": "https://github.com/Codewing-Solutions/wptravelengine-pro-config/issues"
+            },
+            "install-path": "../codewing-solutions/wptravelengine-pro-config"
+        }
+    ],
+    "dev": false,
+    "dev-package-names": []
+}

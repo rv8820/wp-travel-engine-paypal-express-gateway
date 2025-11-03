@@ -1,0 +1,16 @@
+.wp-travel-engine-billing-details-wrapper .payu-title{
+	clear: both;
+    padding: 0 15px;
+    margin: 0 0 30px;
+    font-weight: 700;
+    font-size: 18px;
+    color: #111;
+}
+.paypal-express {
+    display: block;
+    opacity: .5;
+    margin: 3em 0 1em 0;
+}
+#wte-PayPalExpress-button{
+    margin: 55px 0 30px;
+}

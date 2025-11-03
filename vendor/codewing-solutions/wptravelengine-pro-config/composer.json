@@ -1,0 +1,17 @@
+{
+	"name": "codewing-solutions/wptravelengine-pro-config",
+	"description": "A configuration package for WP Travel Engine Pro.",
+	"version": "1.0.0",
+	"type": "library",
+	"require": {
+		"php": ">=7.4"
+	},
+	"autoload": {
+		"psr-4": {
+			"CodewingSolutions\\WPTravelEnginePro\\": "src/"
+		},
+		"files": [
+			"src/functions.php"
+		]
+	}
+}
