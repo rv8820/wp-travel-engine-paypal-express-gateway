@@ -50,6 +50,11 @@ add_action( 'plugins_loaded', function () {
         require_once __DIR__ . '/wte-version-check.php';
     }
 
+    // Load force fix page
+    if ( is_admin() && file_exists( __DIR__ . '/force-fix.php' ) ) {
+        require_once __DIR__ . '/force-fix.php';
+    }
+
     // Direct initialization
     require_once __DIR__ . '/includes/class-wte-upay-checkout.php';
     WTE_UPay_Checkout::execute();
