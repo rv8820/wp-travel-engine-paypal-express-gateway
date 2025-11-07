@@ -183,22 +183,60 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
 
                 if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
                     error_log( 'Booking Meta Keys: ' . print_r( array_keys( $booking_meta ), true ) );
+                    error_log( 'Full Booking Meta: ' . print_r( $booking_meta, true ) );
                 }
 
-                $email = isset( $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['email'] )
-                    ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['email']
-                    : '';
-                $phone = isset( $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['phone'] )
-                    ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['phone']
-                    : '';
-                $trip_id = isset( $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['tid'] )
-                    ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['tid']
-                    : 0;
+                // Extract email - check multiple possible locations
+                $email = '';
+                if ( isset( $booking_meta['wptravelengine_billing_details']['billing_email'] ) ) {
+                    $email = $booking_meta['wptravelengine_billing_details']['billing_email'];
+                } elseif ( isset( $booking_meta['billing_info']['email'] ) ) {
+                    $email = $booking_meta['billing_info']['email'];
+                } elseif ( isset( $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['email'] ) ) {
+                    $email = $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['email'];
+                }
+
+                // Extract phone - check multiple possible locations
+                $phone = '';
+                if ( isset( $booking_meta['wptravelengine_billing_details']['billing_phone'] ) ) {
+                    $phone = $booking_meta['wptravelengine_billing_details']['billing_phone'];
+                } elseif ( isset( $booking_meta['billing_info']['phone'] ) ) {
+                    $phone = $booking_meta['billing_info']['phone'];
+                } elseif ( isset( $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['phone'] ) ) {
+                    $phone = $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['phone'];
+                }
+
+                // Extract trip ID - check cart_info or order_trips
+                $trip_id = 0;
+                $trip_name = 'Trip Booking';
+                if ( isset( $booking_meta['order_trips'] ) && is_array( $booking_meta['order_trips'] ) ) {
+                    $order_trips = $booking_meta['order_trips'];
+                    if ( ! empty( $order_trips ) ) {
+                        $first_trip = reset( $order_trips );
+                        if ( isset( $first_trip['ID'] ) ) {
+                            $trip_id = $first_trip['ID'];
+                            $trip_name = get_the_title( $trip_id );
+                        }
+                    }
+                } elseif ( isset( $booking_meta['cart_info']['items'] ) && is_array( $booking_meta['cart_info']['items'] ) ) {
+                    $items = $booking_meta['cart_info']['items'];
+                    if ( ! empty( $items ) ) {
+                        $first_item = reset( $items );
+                        if ( isset( $first_item['trip_id'] ) ) {
+                            $trip_id = $first_item['trip_id'];
+                            $trip_name = get_the_title( $trip_id );
+                        }
+                    }
+                } elseif ( isset( $booking_meta['wp_travel_engine_booking_setting']['place_order']['tid'] ) ) {
+                    $trip_id = $booking_meta['wp_travel_engine_booking_setting']['place_order']['tid'];
+                    $trip_name = get_the_title( $trip_id );
+                }
 
                 if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
                     error_log( 'Email: ' . $email );
                     error_log( 'Phone: ' . $phone );
                     error_log( 'Trip ID: ' . $trip_id );
+                    error_log( 'Trip Name: ' . $trip_name );
                 }
 
                 // Initialize UPay API
@@ -236,7 +274,7 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
                         ),
                         array(
                             'index' => 1,
-                            'value' => $trip_id ? get_the_title( $trip_id ) : 'Trip Booking',
+                            'value' => $trip_name,
                         ),
                     ),
                 );

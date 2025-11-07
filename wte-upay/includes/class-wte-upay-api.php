@@ -43,8 +43,14 @@ class WTE_UPay_API {
         $this->client_id     = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
         $this->client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
 
-        // Set API URL
-        $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
+        // Set API URL based on debug/test mode
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            // UAT/Test environment
+            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api-uat.unionbankph.com/ubp/external/upay/payments/v1';
+        } else {
+            // Production environment
+            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
+        }
     }
 
     /**
