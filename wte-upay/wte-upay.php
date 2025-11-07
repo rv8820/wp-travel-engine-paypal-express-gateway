@@ -4,8 +4,8 @@
  * Plugin URI:        https://wptravelengine.com/
  * Description:       Accept payments through Union Bank's UPay payment gateway for WP Travel Engine bookings
  * Version:           1.0.0
- * Author:            WP Travel Engine
- * Author URI:        https://wptravelengine.com/
+ * Author:            TM Digital Consulting
+ * Author URI:        https://tmdigitalconsulting.com/
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       wte-upay
@@ -28,18 +28,19 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
 
+// Initialize plugin
 add_action( 'plugins_loaded', function () {
-    wptravelengine_pro_config( __FILE__, array(
-        'id'           => 99999, // Replace with actual ID from WP Travel Engine
-        'slug'         => 'wp-travel-engine-upay-gateway',
-        'plugin_name'  => 'UPay Gateway',
-        'file_path'    => __FILE__,
-        'version'      => WP_TRAVEL_ENGINE_UPAY_VERSION,
-        'dependencies' => [
-            'requires' => [
-                '/includes/class-wte-upay-checkout'
-            ]
-        ],
-        'execute'      => 'WTE_UPay_Checkout',
-    ) );
+    // Check if WP Travel Engine is active
+    if ( ! class_exists( 'WP_Travel_Engine' ) ) {
+        add_action( 'admin_notices', function() {
+            echo '<div class="error"><p>';
+            echo __( '<strong>WP Travel Engine - UPay Gateway</strong> requires WP Travel Engine plugin to be installed and activated.', 'wte-upay' );
+            echo '</p></div>';
+        });
+        return;
+    }
+
+    // Direct initialization
+    require_once __DIR__ . '/includes/class-wte-upay-checkout.php';
+    WTE_UPay_Checkout::execute();
 }, 9 );

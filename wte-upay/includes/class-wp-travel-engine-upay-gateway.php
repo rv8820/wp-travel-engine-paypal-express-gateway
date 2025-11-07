@@ -6,10 +6,7 @@
  */
 
 class Wte_UPay_Admin {
-
-    /**
-     * Constructor
-     */
+    
     public function __construct() {
         add_action( 'wte_upay_settings', array( $this, 'wte_upay_settings' ) );
         add_action( 'wte_upay_enable', array( $this, 'wte_upay_enable' ) );
@@ -17,25 +14,34 @@ class Wte_UPay_Admin {
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
         
         $wp_travel_engine_settings = get_option( 'wp_travel_engine_settings', true );
+        if ( isset( $wp_travel_engine_settings['upay_enable'] ) && $wp_travel_engine_settings['upay_enable'] != '' ) {
+            add_action( 'wte_upay_form', array( $this, 'upay_form' ) );
+        }
         
         add_action( 'add_meta_boxes', array( $this, 'wpte_upay_add_meta_boxes' ) );
         add_action( 'save_post', array( $this, 'wp_travel_engine_upay_meta_box_data' ) );
         add_action( 'init', array( $this, 'load_plugin_textdomain' ) );
-
-        // Register gateway
+    
+        // **CRITICAL: Add filter for the BaseGateway registration (WTE 6.0+)**
         if ( defined( 'WP_TRAVEL_ENGINE_VERSION' ) && version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
             add_filter( 'wptravelengine_registering_payment_gateways', array( $this, 'add_upay_checkout' ) );
         } else {
             add_action( 'wp_travel_engine_available_payment_gateways', array( $this, 'upay_gateway_list' ) );
         }
-
-        // Handle payment process
-        add_action( 'wte_payment_gateway_upay_enable', array( $this, 'process_upay_payment' ), 10, 3 );
+    
+        // **CRITICAL: Add filter for the SORTABLE payment gateway list**
         add_filter( 'wptravelengine_payment_gateways', array( $this, 'add_payment_gateway' ) );
-        add_filter( 'wpte_settings_get_global_tabs', array( $this, 'upay_add_settings' ) );
-
-        // Handle callback
-        add_action( 'init', array( $this, 'handle_upay_callback' ) );
+    
+        // Handle payments
+        add_action( 'wp_travel_engine_after_booking_process_completed', array( $this, 'upay_handle_payment_process' ) );
+    
+        // Filter - Global settings
+        add_filter( 'wpte_settings_get_global_tabs', array( $this, 'add_upay_tab' ) );
+    
+        add_action( 'wte_payment_gateway_upay_enable', array( $this, 'map_payment_data_to_new_booking_structure' ), 10, 3 );
+        
+        // Add this filter to include UPay in REST API settings
+        add_filter( 'wptravelengine_rest_payment_gateways', array( $this, 'add_upay_to_rest_settings' ), 10, 2 );
     }
 
     /**
@@ -370,29 +376,159 @@ class Wte_UPay_Admin {
         $payment_methods['upay'] = new WTE_UPay();
         return $payment_methods;
     }
-
-    /**
-     * Add to gateway list (WTE < 6.0)
-     */
+    
     public function upay_gateway_list( $gateway_list ) {
         $gateway_list['upay_enable'] = array(
-            'label'       => __( 'UPay Payment', 'wte-upay' ),
-            'input_class' => 'upay',
-            'info_text'   => __( 'Pay using Union Bank UPay', 'wte-upay' ),
+            'label'        => __( 'UPay Payment', 'wte-upay' ),
+            'input_class'  => 'upay_enable',
+            'info_text'    => __( 'Pay using Union Bank UPay', 'wte-upay' ),
+            'public_label' => __( 'UPay Payment', 'wte-upay' ),
+            'gateway_id'   => 'upay_enable',
+            'icon_url'     => plugin_dir_url( WPTRAVELENGINE_UPAY_FILE__ ) . 'assets/images/upay-logo.png',
         );
+        
         return $gateway_list;
     }
 
     /**
-     * Add settings tab
+     * Add UPay tab to payment settings
+     *
+     * @param array $tabs Payment tabs.
+     * @return array
      */
-    public function upay_add_settings( $tabs ) {
+    public function _add_upay_tab( $tabs ) {
         $tabs['upay'] = array(
-            'label'   => __( 'UPay Settings', 'wte-upay' ),
-            'content' => array( $this, 'wte_upay_settings' ),
+            'label'    => __( 'UPay', 'wte-upay' ),
+            'callback' => array( $this, 'render_upay_settings_page' ),
         );
         return $tabs;
     }
+    
+    public function add_upay_tab( $global_tabs ) {
+        if ( isset( $global_tabs['wpte-payment'] ) ) {
+            $global_tabs['wpte-payment']['sub_tabs']['wte-upay'] = array(
+                'label'        => __( 'UPay Settings', 'wte-upay' ),
+                'content_path' => plugin_dir_path( WPTRAVELENGINE_UPAY_FILE__ ) . 'admin/includes/backend/global-settings.php',
+                'current'      => false,
+            );
+        }
+        return $global_tabs;
+    }
+    
+    /**
+     * Render UPay settings page
+     */
+    public function render_upay_settings_page() {
+        // Clear cache once
+        if ( ! get_option( 'upay_cache_cleared' ) ) {
+            delete_option( 'wp_travel_engine_sorted_gateways' );
+            delete_transient( 'wte_payment_gateways' );
+            wp_cache_delete( 'payment_gateways', 'wp-travel-engine' );
+            update_option( 'upay_cache_cleared', '1' );
+        }
+    
+        ?>
+        <div class="wpte-field wpte-block-wrap">
+            <div class="wpte-field wpte-checkbox">
+                <label class="wpte-field-label" for="wp_travel_engine_settings[upay_enable]">
+                    <?php esc_html_e( 'Enable UPay Payment', 'wte-upay' ); ?>
+                </label>
+                <?php
+                $settings = get_option( 'wp_travel_engine_settings', array() );
+                $enabled = isset( $settings['upay_enable'] ) && $settings['upay_enable'] == '1';
+                ?>
+                <div class="wpte-checkbox-wrap">
+                    <input type="checkbox" 
+                           id="wp_travel_engine_settings[upay_enable]" 
+                           name="wp_travel_engine_settings[upay_enable]" 
+                           value="1"
+                           <?php checked( $enabled ); ?>>
+                    <label for="wp_travel_engine_settings[upay_enable]"></label>
+                </div>
+                <span class="wpte-tooltip">
+                    <?php esc_html_e( 'Check this to enable UPay payment gateway for trip bookings', 'wte-upay' ); ?>
+                </span>
+            </div>
+    
+            <?php $this->wte_upay_settings(); ?>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Make sure UPay appears in sorted gateway list
+     *
+     * @param array $gateways Sorted gateways.
+     * @return array
+     */
+    public function add_to_sorted_gateways( $gateways ) {
+        // Add UPay if it's not already there
+        if ( ! isset( $gateways['upay_enable'] ) ) {
+            $gateways['upay_enable'] = array(
+                'label'       => __( 'UPay Payment', 'wte-upay' ),
+                'input_class' => 'upay_enable',
+                'info_text'   => __( 'Pay using Union Bank UPay', 'wte-upay' ),
+                'icon_url'     => plugin_dir_url( WPTRAVELENGINE_UPAY_FILE__ ) . 'assets/images/upay-logo.png',
+            );
+        }
+        return $gateways;
+    }
+    
+    /**
+     * Add UPay icon
+     *
+     * @param string $icon Icon URL.
+     * @param string $gateway_id Gateway ID.
+     * @return string
+     */
+    public function add_upay_icon( $icon, $gateway_id ) {
+        if ( $gateway_id === 'upay_enable' ) {
+            // Return SVG as data URI
+            return 'data:image/svg+xml;base64,' . base64_encode('<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z" fill="currentColor"/></svg>');
+        }
+        return $icon;
+    }
+    
+    /**
+     * Add UPay to REST API settings response
+     *
+     * @param array $payment_gateways Payment gateways list.
+     * @param object $plugin_settings Plugin settings.
+     * @return array
+     */
+    public function add_upay_to_rest_settings( $payment_gateways, $plugin_settings ) {
+        $payment_gateways[] = array(
+            'id'     => 'upay_enable',
+            'name'   => 'UPay Payment',
+            'enable' => wptravelengine_toggled( $plugin_settings->get( 'upay_enable' ) ),
+            'icon'   => plugin_dir_url( WPTRAVELENGINE_UPAY_FILE__ ) . 'assets/images/upay-logo.png',
+        );
+        
+        // Add UPay settings
+        $settings['upay'] = array(
+            'client_id'     => (string) $plugin_settings->get( 'upay_settings.client_id', '' ),
+            'client_secret' => (string) $plugin_settings->get( 'upay_settings.client_secret', '' ),
+            'partner_id'    => (string) $plugin_settings->get( 'upay_settings.partner_id', '' ),
+            'biller_uuid'   => (string) $plugin_settings->get( 'upay_settings.biller_uuid', '' ),
+        );
+        
+        return $payment_gateways;
+    }
+    
 }
 
 new Wte_UPay_Admin();
+
+add_action( 'admin_footer', function() {
+    if ( isset( $_GET['page'] ) && strpos( $_GET['page'], 'class-wp-travel-engine-admin' ) !== false ) {
+        $sorted = wp_travel_engine_get_sorted_payment_gateways();
+        echo '<script>console.log("Sorted gateways:", ' . json_encode( array_keys( $sorted ) ) . ');</script>';
+    }
+});
+
+add_action( 'admin_footer', function() {
+    if ( isset( $_GET['page'] ) && strpos( $_GET['page'], 'class-wp-travel-engine-admin' ) !== false ) {
+        $sorted = wp_travel_engine_get_sorted_payment_gateways();
+        echo '<script>console.log("Full gateway data:", ' . json_encode( $sorted ) . ');</script>';
+    }
+});
