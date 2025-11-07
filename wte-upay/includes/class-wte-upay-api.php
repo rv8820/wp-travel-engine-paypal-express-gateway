@@ -52,13 +52,13 @@ class WTE_UPay_API {
      */
     public function __construct() {
         $settings = get_option( 'wp_travel_engine_settings', array() );
-        
-        // Get credentials from settings
-        $this->client_id     = isset( $settings['upay_client_id'] ) ? $settings['upay_client_id'] : '';
-        $this->client_secret = isset( $settings['upay_client_secret'] ) ? $settings['upay_client_secret'] : '';
-        $this->partner_id    = isset( $settings['upay_partner_id'] ) ? $settings['upay_partner_id'] : '';
-        $this->biller_uuid   = isset( $settings['upay_biller_uuid'] ) ? $settings['upay_biller_uuid'] : '';
-        
+
+        // Get credentials from settings - FIX: Use correct nested path
+        $this->client_id     = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
+        $this->client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
+        $this->partner_id    = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
+        $this->biller_uuid   = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
+
         // Set API URL
         $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
     }
@@ -206,7 +206,7 @@ class WTE_UPay_API {
      */
     protected function get_formatted_date() {
         $date = new DateTime( 'now', new DateTimeZone( 'Asia/Manila' ) );
-        return $date->format( 'Y-m-d\TH:i:s.v\Z' );
+        return $date->format( 'Y-m-d\TH:i:s.vP' );
     }
 
     /**

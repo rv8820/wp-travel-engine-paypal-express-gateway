@@ -12,34 +12,41 @@ class Wte_UPay_Admin {
         add_action( 'wte_upay_enable', array( $this, 'wte_upay_enable' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_backend_assets' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
-        
+
         $wp_travel_engine_settings = get_option( 'wp_travel_engine_settings', true );
         if ( isset( $wp_travel_engine_settings['upay_enable'] ) && $wp_travel_engine_settings['upay_enable'] != '' ) {
             add_action( 'wte_upay_form', array( $this, 'upay_form' ) );
         }
-        
+
         add_action( 'add_meta_boxes', array( $this, 'wpte_upay_add_meta_boxes' ) );
         add_action( 'save_post', array( $this, 'wp_travel_engine_upay_meta_box_data' ) );
         add_action( 'init', array( $this, 'load_plugin_textdomain' ) );
-    
+
         // **CRITICAL: Add filter for the BaseGateway registration (WTE 6.0+)**
         if ( defined( 'WP_TRAVEL_ENGINE_VERSION' ) && version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
             add_filter( 'wptravelengine_registering_payment_gateways', array( $this, 'add_upay_checkout' ) );
         } else {
             add_action( 'wp_travel_engine_available_payment_gateways', array( $this, 'upay_gateway_list' ) );
         }
-    
+
         // **CRITICAL: Add filter for the SORTABLE payment gateway list**
         add_filter( 'wptravelengine_payment_gateways', array( $this, 'add_payment_gateway' ) );
-    
+
         // Handle payments
         add_action( 'wp_travel_engine_after_booking_process_completed', array( $this, 'upay_handle_payment_process' ) );
-    
+
         // Filter - Global settings
         add_filter( 'wpte_settings_get_global_tabs', array( $this, 'add_upay_tab' ) );
-    
-        add_action( 'wte_payment_gateway_upay_enable', array( $this, 'map_payment_data_to_new_booking_structure' ), 10, 3 );
-        
+
+        // FIX: Hook to process payment action from WTE_Payment_Gateway_UPay
+        add_action( 'wte_payment_gateway_upay_enable', array( $this, 'process_upay_payment' ), 10, 3 );
+
+        // FIX: Add callback handler initialization
+        add_action( 'init', array( $this, 'handle_upay_callback' ) );
+
+        // FIX: Add QR code display handler
+        add_action( 'template_redirect', array( $this, 'display_upay_qr_code' ) );
+
         // Add this filter to include UPay in REST API settings
         add_filter( 'wptravelengine_rest_payment_gateways', array( $this, 'add_upay_to_rest_settings' ), 10, 2 );
     }
@@ -64,6 +71,32 @@ class Wte_UPay_Admin {
     public function add_payment_gateway( $payment_gateways ) {
         $payment_gateways['upay_enable'] = new \WTE_Payment_Gateway_UPay();
         return $payment_gateways;
+    }
+
+    /**
+     * Handle payment process after booking completion
+     *
+     * This is called by wp_travel_engine_after_booking_process_completed action
+     *
+     * @param int $payment_id Payment ID.
+     */
+    public function upay_handle_payment_process( $payment_id ) {
+        // Get payment gateway for this payment
+        $gateway = get_post_meta( $payment_id, 'wp_travel_engine_payment_gateway', true );
+
+        // Only process if this is a UPay payment
+        if ( 'upay_enable' !== $gateway ) {
+            return;
+        }
+
+        // Get payment type
+        $payment_type = get_post_meta( $payment_id, 'payment_type', true );
+        if ( ! $payment_type ) {
+            $payment_type = 'full_payment';
+        }
+
+        // Process the payment
+        $this->process_upay_payment( $payment_id, $payment_type, $gateway );
     }
 
     /**
@@ -172,6 +205,151 @@ class Wte_UPay_Admin {
             wp_safe_redirect( wp_travel_engine_get_checkout_url() );
             exit;
         }
+    }
+
+    /**
+     * Display QR code page for InstaPay payments
+     */
+    public function display_upay_qr_code() {
+        if ( ! isset( $_GET['action'] ) || 'upay_qr' !== $_GET['action'] ) {
+            return;
+        }
+
+        if ( ! isset( $_GET['payment_id'] ) ) {
+            return;
+        }
+
+        $payment_id = absint( $_GET['payment_id'] );
+        $qr_code = get_post_meta( $payment_id, 'upay_qr_code', true );
+        $transaction_id = get_post_meta( $payment_id, 'upay_transaction_id', true );
+        $booking_id = get_post_meta( $payment_id, 'booking_id', true );
+
+        if ( ! $qr_code ) {
+            wp_die( esc_html__( 'QR Code not found', 'wte-upay' ) );
+        }
+
+        // Get booking details for display
+        $payable = get_post_meta( $payment_id, 'payable', true );
+        $amount = isset( $payable['amount'] ) ? $payable['amount'] : 0;
+
+        // Output QR code page
+        ?>
+        <!DOCTYPE html>
+        <html <?php language_attributes(); ?>>
+        <head>
+            <meta charset="<?php bloginfo( 'charset' ); ?>">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title><?php esc_html_e( 'UPay Payment - Scan QR Code', 'wte-upay' ); ?></title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+                    background: #f5f5f5;
+                    margin: 0;
+                    padding: 20px;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                }
+                .upay-qr-container {
+                    background: white;
+                    border-radius: 8px;
+                    padding: 40px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    text-align: center;
+                    max-width: 500px;
+                }
+                .upay-qr-container h1 {
+                    color: #333;
+                    margin-bottom: 10px;
+                    font-size: 24px;
+                }
+                .upay-qr-container p {
+                    color: #666;
+                    margin-bottom: 30px;
+                }
+                .qr-code {
+                    margin: 30px 0;
+                }
+                .qr-code img {
+                    max-width: 300px;
+                    height: auto;
+                }
+                .amount {
+                    font-size: 32px;
+                    font-weight: bold;
+                    color: #2271b1;
+                    margin: 20px 0;
+                }
+                .instructions {
+                    background: #f0f6fc;
+                    border-left: 4px solid #2271b1;
+                    padding: 15px;
+                    margin: 20px 0;
+                    text-align: left;
+                }
+                .instructions ol {
+                    margin: 10px 0;
+                    padding-left: 20px;
+                }
+                .instructions li {
+                    margin: 5px 0;
+                }
+                .transaction-id {
+                    font-size: 12px;
+                    color: #999;
+                    margin-top: 20px;
+                }
+                .loading-message {
+                    margin-top: 20px;
+                    color: #666;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="upay-qr-container">
+                <h1><?php esc_html_e( 'Scan to Pay with InstaPay', 'wte-upay' ); ?></h1>
+                <p><?php esc_html_e( 'Use your banking app to scan this QR code', 'wte-upay' ); ?></p>
+
+                <div class="amount">
+                    <?php echo esc_html( '₱' . number_format( $amount, 2 ) ); ?>
+                </div>
+
+                <div class="qr-code">
+                    <img src="data:image/png;base64,<?php echo esc_attr( $qr_code ); ?>" alt="<?php esc_attr_e( 'UPay QR Code', 'wte-upay' ); ?>" />
+                </div>
+
+                <div class="instructions">
+                    <strong><?php esc_html_e( 'How to pay:', 'wte-upay' ); ?></strong>
+                    <ol>
+                        <li><?php esc_html_e( 'Open your banking app or e-wallet', 'wte-upay' ); ?></li>
+                        <li><?php esc_html_e( 'Select "Scan QR" or "InstaPay"', 'wte-upay' ); ?></li>
+                        <li><?php esc_html_e( 'Scan the QR code above', 'wte-upay' ); ?></li>
+                        <li><?php esc_html_e( 'Confirm the payment', 'wte-upay' ); ?></li>
+                    </ol>
+                </div>
+
+                <div class="loading-message">
+                    <p><?php esc_html_e( 'This page will automatically update once payment is received.', 'wte-upay' ); ?></p>
+                </div>
+
+                <?php if ( $transaction_id ) : ?>
+                <div class="transaction-id">
+                    <?php echo esc_html( sprintf( __( 'Transaction ID: %s', 'wte-upay' ), $transaction_id ) ); ?>
+                </div>
+                <?php endif; ?>
+
+                <script>
+                    // Poll for payment status every 5 seconds
+                    setInterval(function() {
+                        window.location.href = '<?php echo esc_url( add_query_arg( array( 'upay_callback' => '1', 'payment_id' => $payment_id ), home_url() ) ); ?>';
+                    }, 5000);
+                </script>
+            </div>
+        </body>
+        </html>
+        <?php
+        exit;
     }
 
     /**
@@ -293,6 +471,17 @@ class Wte_UPay_Admin {
             <div class="settings-note">
                 <?php esc_html_e( 'Enter your Biller UUID from UnionBank UPay', 'wte-upay' ); ?>
             </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Display UPay payment form on checkout
+     */
+    public function upay_form() {
+        ?>
+        <div class="wpte-payment-gateway-info">
+            <p><?php esc_html_e( 'You will be redirected to Union Bank UPay to complete your payment.', 'wte-upay' ); ?></p>
         </div>
         <?php
     }
