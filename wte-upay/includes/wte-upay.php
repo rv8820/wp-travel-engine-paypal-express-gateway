@@ -158,12 +158,33 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
 
             // Initial payment request - redirect to UPay
             try {
+                // Log start of payment processing
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( '=== UPay Payment Processing Started ===' );
+                    error_log( 'Payment ID: ' . $payment->ID );
+                    error_log( 'Booking ID: ' . $booking->ID );
+                }
+
                 // Get payment amount
                 $payment_amount = $payment->get_meta( 'payable' );
                 $amount = isset( $payment_amount['amount'] ) ? $payment_amount['amount'] : 0;
 
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( 'Payment Amount Data: ' . print_r( $payment_amount, true ) );
+                    error_log( 'Amount: ' . $amount );
+                }
+
+                if ( empty( $amount ) || $amount <= 0 ) {
+                    throw new Exception( __( 'Invalid payment amount. Please try again.', 'wte-upay' ) );
+                }
+
                 // Get booking details
                 $booking_meta = $booking->get_all_meta();
+
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( 'Booking Meta Keys: ' . print_r( array_keys( $booking_meta ), true ) );
+                }
+
                 $email = isset( $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['email'] )
                     ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['email']
                     : '';
@@ -174,8 +195,28 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
                     ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['tid']
                     : 0;
 
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( 'Email: ' . $email );
+                    error_log( 'Phone: ' . $phone );
+                    error_log( 'Trip ID: ' . $trip_id );
+                }
+
                 // Initialize UPay API
                 $upay_api = new WTE_UPay_API();
+
+                // Check if credentials are configured
+                $settings = get_option( 'wp_travel_engine_settings', array() );
+                $client_id = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
+                $client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
+
+                if ( empty( $client_id ) || empty( $client_secret ) ) {
+                    throw new Exception( __( 'UPay payment gateway is not configured. Please contact the site administrator.', 'wte-upay' ) );
+                }
+
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( 'UPay Credentials Check: Client ID = ' . ( ! empty( $client_id ) ? 'Set' : 'Not Set' ) );
+                    error_log( 'UPay Credentials Check: Client Secret = ' . ( ! empty( $client_secret ) ? 'Set' : 'Not Set' ) );
+                }
 
                 // Generate unique order ID
                 $order_id = $upay_api->generate_sender_ref_id( $payment->ID );
@@ -200,6 +241,10 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
                     ),
                 );
 
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( 'Payment Data: ' . print_r( $payment_data, true ) );
+                }
+
                 // Store order ID
                 $payment->set_meta( 'upay_sender_ref_id', $order_id );
                 $payment->set_meta( 'payment_status', 'pending' );
@@ -209,8 +254,16 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
                 $booking->set_meta( 'wp_travel_engine_booking_status', 'pending' );
                 $booking->save();
 
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( 'Creating UPay transaction via API...' );
+                }
+
                 // Create transaction via UPay API
                 $response = $upay_api->create_transaction( $payment_data );
+
+                if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                    error_log( 'UPay API Response: ' . print_r( $response, true ) );
+                }
 
                 if ( is_wp_error( $response ) ) {
                     throw new Exception( $response->get_error_message() );
@@ -241,9 +294,17 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
                         ),
                         home_url()
                     );
+
+                    if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                        error_log( 'Redirecting to QR code page: ' . $redirect_url );
+                    }
                 } else {
                     // Other methods - redirect to payment URL if provided
                     $redirect_url = isset( $response['paymentUrl'] ) ? $response['paymentUrl'] : home_url();
+
+                    if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                        error_log( 'Redirecting to payment URL: ' . $redirect_url );
+                    }
                 }
 
                 // Perform redirect
@@ -252,16 +313,21 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
 
             } catch ( Exception $e ) {
                 // Log error
-                error_log( 'UPay Payment Error: ' . $e->getMessage() );
+                error_log( '=== UPay Payment Error ===' );
+                error_log( 'Error Message: ' . $e->getMessage() );
+                error_log( 'Error Trace: ' . $e->getTraceAsString() );
 
-                // Set error in session
+                // Set error in session for display to user
                 if ( function_exists( 'WTE' ) && WTE()->session ) {
                     $session = WTE()->session;
                     $errors  = $session->get( 'wp_travel_engine_errors' );
                     if ( ! is_array( $errors ) ) {
                         $errors = array();
                     }
-                    $errors[] = $e->getMessage();
+                    $errors[] = sprintf(
+                        __( 'UPay Payment Error: %s', 'wte-upay' ),
+                        $e->getMessage()
+                    );
                     $session->set( 'wp_travel_engine_errors', $errors );
                 }
 
