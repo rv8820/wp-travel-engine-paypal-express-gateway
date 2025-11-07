@@ -103,15 +103,15 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
          * @return void
          */
         public function process_payment( Booking $booking, Payment $payment, BookingProcess $booking_instance ): void {
-            
-            // Check if callback data is present
+
+            // Check if this is a callback from UPay (payment confirmation)
             if ( isset( $_POST['wte_upay_payment_details'] ) ) {
                 $response = json_decode( wp_unslash( $_POST['wte_upay_payment_details'] ), true );
-                
+
                 if ( $response && isset( $response['state'] ) ) {
                     // Store gateway response
                     $payment->set_meta( 'gateway_response', $response );
-                
+
                     // Set payment status
                     $payment->set_meta( 'payment_status', strtolower( $response['state'] ) );
 
@@ -128,21 +128,21 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
                     // Process successful payment
                     if ( isset( $response['amount'] ) && in_array( strtolower( $response['state'] ), array( 'success', 'completed', 'paid' ), true ) ) {
                         $amount = (float) $response['amount'];
-                        
+
                         // Set payment amount
                         $payment_amount = array(
                             'value'    => $amount,
                             'currency' => isset( $response['currency'] ) ? $response['currency'] : 'PHP',
                         );
                         $payment->set_meta( 'payment_amount', $payment_amount );
-                        
+
                         // Update booking status
                         $booking->set_meta( 'wp_travel_engine_booking_status', 'booked' );
                         $booking->update_paid_amount( $amount );
                         $booking->update_due_amount( $amount );
                     }
                 }
-               
+
                 // Save payment and booking
                 $payment->save();
                 $booking->save();
@@ -152,6 +152,127 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
 
                 // Fire completion action
                 do_action( 'wptravelengine_process_payment_complete', 'upay_payment', $booking, $payment );
+
+                return;
+            }
+
+            // Initial payment request - redirect to UPay
+            try {
+                // Get payment amount
+                $payment_amount = $payment->get_meta( 'payable' );
+                $amount = isset( $payment_amount['amount'] ) ? $payment_amount['amount'] : 0;
+
+                // Get booking details
+                $booking_meta = $booking->get_all_meta();
+                $email = isset( $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['email'] )
+                    ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['email']
+                    : '';
+                $phone = isset( $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['phone'] )
+                    ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['booking']['phone']
+                    : '';
+                $trip_id = isset( $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['tid'] )
+                    ? $booking_meta['wp_travel_engine_placeorder_setting']['place_order']['tid']
+                    : 0;
+
+                // Initialize UPay API
+                $upay_api = new WTE_UPay_API();
+
+                // Generate unique order ID
+                $order_id = $upay_api->generate_sender_ref_id( $payment->ID );
+
+                // Prepare payment data
+                $payment_data = array(
+                    'order_id'       => $order_id,
+                    'email'          => $email,
+                    'amount'         => $amount,
+                    'payment_method' => 'instapay', // Default to InstaPay
+                    'mobile'         => $phone,
+                    'callback_url'   => home_url( '?upay_callback=1&payment_id=' . $payment->ID ),
+                    'references'     => array(
+                        array(
+                            'index' => 0,
+                            'value' => 'Booking #' . $booking->ID,
+                        ),
+                        array(
+                            'index' => 1,
+                            'value' => $trip_id ? get_the_title( $trip_id ) : 'Trip Booking',
+                        ),
+                    ),
+                );
+
+                // Store order ID
+                $payment->set_meta( 'upay_sender_ref_id', $order_id );
+                $payment->set_meta( 'payment_status', 'pending' );
+                $payment->save();
+
+                // Set booking status to pending
+                $booking->set_meta( 'wp_travel_engine_booking_status', 'pending' );
+                $booking->save();
+
+                // Create transaction via UPay API
+                $response = $upay_api->create_transaction( $payment_data );
+
+                if ( is_wp_error( $response ) ) {
+                    throw new Exception( $response->get_error_message() );
+                }
+
+                // Store transaction details
+                if ( isset( $response['transactionId'] ) ) {
+                    $payment->set_meta( 'upay_transaction_id', $response['transactionId'] );
+                }
+                if ( isset( $response['uuid'] ) ) {
+                    $payment->set_meta( 'upay_uuid', $response['uuid'] );
+                }
+
+                // Store full response
+                $payment->set_meta( 'upay_response', $response );
+                $payment->save();
+
+                // Redirect based on payment method
+                if ( isset( $response['qrCode'] ) && ! empty( $response['qrCode'] ) ) {
+                    // InstaPay - show QR code
+                    $payment->set_meta( 'upay_qr_code', $response['qrCode'] );
+                    $payment->save();
+
+                    $redirect_url = add_query_arg(
+                        array(
+                            'payment_id' => $payment->ID,
+                            'action'     => 'upay_qr',
+                        ),
+                        home_url()
+                    );
+                } else {
+                    // Other methods - redirect to payment URL if provided
+                    $redirect_url = isset( $response['paymentUrl'] ) ? $response['paymentUrl'] : home_url();
+                }
+
+                // Perform redirect
+                wp_safe_redirect( $redirect_url );
+                exit;
+
+            } catch ( Exception $e ) {
+                // Log error
+                error_log( 'UPay Payment Error: ' . $e->getMessage() );
+
+                // Set error in session
+                if ( function_exists( 'WTE' ) && WTE()->session ) {
+                    $session = WTE()->session;
+                    $errors  = $session->get( 'wp_travel_engine_errors' );
+                    if ( ! is_array( $errors ) ) {
+                        $errors = array();
+                    }
+                    $errors[] = $e->getMessage();
+                    $session->set( 'wp_travel_engine_errors', $errors );
+                }
+
+                // Set payment as failed
+                $payment->set_meta( 'payment_status', 'failed' );
+                $payment->set_meta( 'payment_error', $e->getMessage() );
+                $payment->save();
+
+                // Redirect back to checkout
+                wp_safe_redirect( wp_travel_engine_get_checkout_url() );
+                exit;
             }
         }
     }
