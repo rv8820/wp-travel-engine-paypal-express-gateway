@@ -6,7 +6,7 @@
  */
 
 if ( ! class_exists( 'WTE_UPay_Checkout' ) ) :
-    
+
     class WTE_UPay_Checkout {
 
         /**
@@ -34,7 +34,7 @@ if ( ! class_exists( 'WTE_UPay_Checkout' ) ) :
         public function __construct() {
             $this->define_constants();
             add_action( 'admin_notices', array( $this, 'check_dependency' ) );
-            
+
             if ( class_exists( 'WP_Travel_Engine' ) ) {
                 $this->init_hooks();
             }
@@ -45,10 +45,10 @@ if ( ! class_exists( 'WTE_UPay_Checkout' ) ) :
          */
         private function define_constants() {
             // UPay API URLs based on documentation
-            $upay_url = defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG 
-                ? 'https://apiuat.unionbankph.com/ubp/external/upay/payments/v1' 
+            $upay_url = defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG
+                ? 'https://apiuat.unionbankph.com/ubp/external/upay/payments/v1'
                 : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
-            
+
             $this->define( 'UPAY_BASE_URL', $upay_url );
             $this->define( 'WP_TRAVEL_ENGINE_UPAY_FILE_PATH', WPTRAVELENGINE_UPAY_FILE__ );
             $this->define( 'WP_TRAVEL_ENGINE_UPAY_BASE_PATH', dirname( WPTRAVELENGINE_UPAY_FILE__ ) );
@@ -75,6 +75,11 @@ if ( ! class_exists( 'WTE_UPay_Checkout' ) ) :
             require WP_TRAVEL_ENGINE_UPAY_BASE_PATH . '/includes/class-wte-upay-api.php';
             require_once WP_TRAVEL_ENGINE_UPAY_BASE_PATH . '/includes/wte-upay.php';
 
+            // Include standalone settings page (admin only)
+            if ( is_admin() && file_exists( WP_TRAVEL_ENGINE_UPAY_BASE_PATH . '/includes/class-wte-upay-standalone-settings.php' ) ) {
+                require WP_TRAVEL_ENGINE_UPAY_BASE_PATH . '/includes/class-wte-upay-standalone-settings.php';
+            }
+
             // Include updater if admin
             if ( is_admin() && file_exists( WP_TRAVEL_ENGINE_UPAY_BASE_PATH . '/updater/wte-upay-updater.php' ) ) {
                 require WP_TRAVEL_ENGINE_UPAY_BASE_PATH . '/updater/wte-upay-updater.php';
@@ -92,17 +97,17 @@ if ( ! class_exists( 'WTE_UPay_Checkout' ) ) :
          * Check if WP Travel Engine is installed
          */
         public function check_dependency() {
-            if ( ! class_exists( 'Wp_Travel_Engine' ) || 
-                 ! defined( 'WP_TRAVEL_ENGINE_VERSION' ) || 
+            if ( ! class_exists( 'Wp_Travel_Engine' ) ||
+                 ! defined( 'WP_TRAVEL_ENGINE_VERSION' ) ||
                  version_compare( WP_TRAVEL_ENGINE_VERSION, '5.0.0', '<' ) ) {
-                
+
                 echo '<div id="message" class="error">';
                 echo '<p>' . sprintf(
                     __( '<strong>WP Travel Engine - UPay Gateway</strong> requires WP Travel Engine plugin version 5.0 or higher. Please install and activate WP Travel Engine first. <a href="%s">Plugin will be deactivated now.</a>', 'wte-upay' ),
                     admin_url( 'plugins.php' )
                 ) . '</p>';
                 echo '</div>';
-                
+
                 deactivate_plugins( WPTRAVELENGINE_UPAY_FILE__ );
             }
         }
