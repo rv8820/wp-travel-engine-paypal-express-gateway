@@ -604,7 +604,7 @@ class Wte_UPay_Admin {
         if ( isset( $global_tabs['wpte-payment'] ) ) {
             $global_tabs['wpte-payment']['sub_tabs']['wte-upay'] = array(
                 'label'        => __( 'UPay Settings', 'wte-upay' ),
-                'content_path' => plugin_dir_path( WPTRAVELENGINE_UPAY_FILE__ ) . 'admin/includes/backend/global-settings.php',
+                'content_path' => plugin_dir_path( WPTRAVELENGINE_UPAY_FILE__ ) . 'includes/backend/global-settings.php',
                 'current'      => false,
             );
         }
