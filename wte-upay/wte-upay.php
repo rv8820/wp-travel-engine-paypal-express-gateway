@@ -45,6 +45,11 @@ add_action( 'plugins_loaded', function () {
         require_once __DIR__ . '/debug-upay.php';
     }
 
+    // Load WTE version check page
+    if ( is_admin() && file_exists( __DIR__ . '/wte-version-check.php' ) ) {
+        require_once __DIR__ . '/wte-version-check.php';
+    }
+
     // Direct initialization
     require_once __DIR__ . '/includes/class-wte-upay-checkout.php';
     WTE_UPay_Checkout::execute();
