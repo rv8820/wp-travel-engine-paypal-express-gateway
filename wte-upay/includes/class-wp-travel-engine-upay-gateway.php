@@ -64,12 +64,20 @@ class Wte_UPay_Admin {
 
     /**
      * Add payment gateway to list
+     * FIX: Check which version of WTE and use appropriate class
      *
      * @param array $payment_gateways Payment gateways.
      * @return array
      */
     public function add_payment_gateway( $payment_gateways ) {
-        $payment_gateways['upay_enable'] = new \WTE_Payment_Gateway_UPay();
+        // For WTE 6.0+, use the BaseGateway version
+        if ( class_exists( 'WTE_UPay' ) ) {
+            $payment_gateways['upay_enable'] = new \WTE_UPay();
+        }
+        // For older WTE versions, use the legacy Payment_Gateway version
+        elseif ( class_exists( 'WTE_Payment_Gateway_UPay' ) ) {
+            $payment_gateways['upay_enable'] = new \WTE_Payment_Gateway_UPay();
+        }
         return $payment_gateways;
     }
 
@@ -567,9 +575,12 @@ class Wte_UPay_Admin {
 
     /**
      * Add to gateway list (WTE 6.0+)
+     * FIX: Use correct key 'upay_enable' to match other methods
      */
     public function add_upay_checkout( $payment_methods ) {
-        $payment_methods['upay'] = new WTE_UPay();
+        if ( class_exists( 'WTE_UPay' ) ) {
+            $payment_methods['upay_enable'] = new WTE_UPay();
+        }
         return $payment_methods;
     }
     
