@@ -40,6 +40,11 @@ add_action( 'plugins_loaded', function () {
         return;
     }
 
+    // Load debug page
+    if ( is_admin() && file_exists( __DIR__ . '/debug-upay.php' ) ) {
+        require_once __DIR__ . '/debug-upay.php';
+    }
+
     // Direct initialization
     require_once __DIR__ . '/includes/class-wte-upay-checkout.php';
     WTE_UPay_Checkout::execute();
