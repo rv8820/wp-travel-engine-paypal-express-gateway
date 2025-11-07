@@ -10,16 +10,25 @@ wte-upay/
 ├── wte-upay.php                                    # Main plugin file
 ├── README.md                                       # Plugin documentation
 ├── SETUP_GUIDE.md                                  # Detailed setup instructions
+├── QUICK_START.md                                  # Quick start guide (NEW)
+├── STANDALONE_SETTINGS_GUIDE.md                    # Standalone settings documentation (NEW)
+├── FIXES_APPLIED.md                                # All bug fixes documentation
+├── ACCESSING_SETTINGS.md                           # Settings access troubleshooting
 ├── includes/
 │   ├── class-wte-upay-checkout.php                # Main initialization class
 │   ├── class-wp-travel-engine-upay-gateway.php    # Admin settings & payment handler
 │   ├── class-wte-upay-api.php                     # UPay API communication class
 │   ├── class-wte-upay-request.php                 # Payment gateway (WTE < 6.0)
-│   └── wte-upay.php                               # Base gateway (WTE 6.0+)
+│   ├── wte-upay.php                               # Base gateway (WTE 6.0+)
+│   ├── class-wte-upay-standalone-settings.php     # Standalone settings page (NEW)
+│   └── backend/
+│       └── global-settings.php                    # Original tab-based settings
 ├── admin/
 │   └── includes/
 │       └── backend/
 │           └── upay.php                           # Payment details meta box
+├── debug-upay.php                                  # Diagnostic tool
+├── wte-version-check.php                          # WTE version checker
 └── languages/
     └── wte-upay.pot                               # Translation template
 ```
@@ -135,6 +144,37 @@ GET /transactions/{billerUuid}/status?transactionId={transactionId}
 ```
 WP Admin → WP Travel Engine → Settings → UPay Settings
 ```
+
+---
+
+## ⚙️ Settings Access (IMPORTANT!)
+
+### Standalone Settings Page
+Due to WTE 6.6.9 compatibility issues with the tab registration system, UPay uses a **standalone settings page** that appears directly in your WordPress admin sidebar.
+
+**How to Access:**
+1. **Via Admin Sidebar:** Look for "💰 UPay Settings" in the WordPress admin menu
+2. **Via Direct URL:** `wp-admin/admin.php?page=wte-upay-settings`
+
+**What You Can Configure:**
+- Enable/Disable UPay gateway
+- Client ID (X-IBM-Client-Id)
+- Client Secret (X-IBM-Client-Secret)
+- Partner ID (X-Partner-Id)
+- Biller UUID
+- View current environment (TEST/PRODUCTION)
+
+**Documentation:**
+- See **QUICK_START.md** for a 5-step setup guide
+- See **STANDALONE_SETTINGS_GUIDE.md** for comprehensive documentation
+- See **ACCESSING_SETTINGS.md** for troubleshooting
+
+### Why Standalone Page?
+WTE 6.6.9 introduced architectural changes that prevented the standard tab registration from working. The standalone page provides:
+- ✅ Direct access from sidebar (easier to find)
+- ✅ Independent of WTE's tab system
+- ✅ All original functionality preserved
+- ✅ Future-proof against WTE updates
 
 ---
 
@@ -328,16 +368,26 @@ define( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG', false );
 
 1. ✅ Complete plugin structure
 2. ✅ UPay API integration (POST /transactions, GET /status)
-3. ✅ Admin settings interface
+3. ✅ Admin settings interface (standalone page)
 4. ✅ Payment processing logic
 5. ✅ Callback handling
 6. ✅ Status verification
-7. ✅ WTE 5.0+ compatibility
-8. ✅ WTE 6.0+ compatibility
-9. ✅ Translation-ready
-10. ✅ Documentation (README.md)
-11. ✅ Setup guide (SETUP_GUIDE.md)
-12. ✅ Code comments
+7. ✅ QR code display for InstaPay
+8. ✅ WTE 5.0+ compatibility
+9. ✅ WTE 6.0+ compatibility (BaseGateway)
+10. ✅ WTE 6.6.9 compatibility (standalone settings)
+11. ✅ Translation-ready
+12. ✅ Comprehensive documentation:
+    - README.md
+    - SETUP_GUIDE.md
+    - QUICK_START.md (NEW)
+    - STANDALONE_SETTINGS_GUIDE.md (NEW)
+    - FIXES_APPLIED.md
+    - ACCESSING_SETTINGS.md
+    - PROJECT_SUMMARY.md
+13. ✅ Diagnostic tools (debug-upay.php, wte-version-check.php)
+14. ✅ Code comments throughout
+15. ✅ 7 critical bug fixes applied and documented
 
 ---
 
