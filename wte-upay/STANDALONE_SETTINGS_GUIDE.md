@@ -29,12 +29,10 @@ The standalone page provides access to:
 - Toggle on/off without affecting other payment methods
 
 ### 2. API Credentials (Required)
-All four credentials are required for UPay to function:
+Both credentials are required for UPay to function:
 
 - **Client ID (X-IBM-Client-Id)**: Your UPay Client ID from Developer Portal
 - **Client Secret (X-IBM-Client-Secret)**: Your UPay Client Secret from Developer Portal
-- **Partner ID (X-Partner-Id)**: Partner ID provided by Union Bank
-- **Biller UUID**: Your unique Biller UUID from Union Bank UPay
 
 ### 3. Test Mode Indicator
 - Shows current environment (UAT vs Production)
@@ -65,8 +63,6 @@ This switches to Union Bank's UAT environment:
 4. Obtain your test credentials:
    - Client ID
    - Client Secret
-   - Partner ID
-   - Biller UUID
 
 #### For Production:
 1. Visit: https://developer.unionbankph.com
@@ -77,11 +73,9 @@ This switches to Union Bank's UAT environment:
 
 1. Navigate to **UPay Settings** in WordPress admin
 2. Check **"Enable UPay Payment"**
-3. Enter all four credentials:
+3. Enter both credentials:
    - Client ID
    - Client Secret
-   - Partner ID
-   - Biller UUID
 4. Click **"Save UPay Settings"**
 
 ### Step 4: Verify Configuration
@@ -129,7 +123,7 @@ The page includes helpful links to:
 ### UPay Not Appearing at Checkout?
 
 1. **Verify "Enable UPay Payment" is checked** in settings
-2. **Check all credentials are entered** (all 4 fields required)
+2. **Check both credentials are entered** (Client ID and Client Secret required)
 3. **Review payment gateway registration**: Check WTE → Settings → Payment to confirm gateway is active
 
 ## Technical Details

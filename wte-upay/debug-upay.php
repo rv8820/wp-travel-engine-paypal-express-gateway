@@ -205,14 +205,6 @@ function upay_render_debug_page() {
                 <td><strong>Client Secret Set:</strong></td>
                 <td><?php echo ! empty( $settings['upay_settings']['client_secret'] ) ? '✅ Yes' : '❌ No'; ?></td>
             </tr>
-            <tr>
-                <td><strong>Partner ID Set:</strong></td>
-                <td><?php echo ! empty( $settings['upay_settings']['partner_id'] ) ? '✅ Yes' : '❌ No'; ?></td>
-            </tr>
-            <tr>
-                <td><strong>Biller UUID Set:</strong></td>
-                <td><?php echo ! empty( $settings['upay_settings']['biller_uuid'] ) ? '✅ Yes' : '❌ No'; ?></td>
-            </tr>
         </table>
 
         <hr>

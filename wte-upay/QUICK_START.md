@@ -33,11 +33,9 @@ Visit: https://developer-uat.unionbankph.com
 In WordPress admin:
 1. Click **"UPay Settings"** in sidebar
 2. Check **"Enable UPay Payment"**
-3. Enter your 4 credentials:
+3. Enter your credentials:
    - Client ID
    - Client Secret
-   - Partner ID
-   - Biller UUID
 4. Click **"Save UPay Settings"**
 
 ### 4. Verify
@@ -55,11 +53,9 @@ You should see:
 
 ## 📋 What You Need
 
-### Required Credentials (All 4)
+### Required Credentials (Both Required)
 1. **Client ID** - From Union Bank Developer Portal
 2. **Client Secret** - From Union Bank Developer Portal
-3. **Partner ID** - Provided by Union Bank
-4. **Biller UUID** - From Union Bank UPay
 
 ### Environment URLs
 - **Test (UAT)**: https://developer-uat.unionbankph.com
@@ -75,13 +71,13 @@ You should see:
 - Verify you're logged in as Administrator
 
 **Settings not saving?**
-- Check all 4 credentials are filled in
+- Check both credentials are filled in
 - Look for PHP errors in debug log
 - Verify WordPress can write to database
 
 **UPay not showing at checkout?**
 - Ensure "Enable UPay Payment" is checked
-- Verify all credentials are entered
+- Verify both credentials are entered
 - Check WTE Settings → Payment for gateway status
 
 ---

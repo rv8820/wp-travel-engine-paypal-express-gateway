@@ -34,30 +34,14 @@ class WTE_UPay_API {
     protected $client_secret;
 
     /**
-     * Partner ID (X-Partner-Id)
-     *
-     * @var string
-     */
-    protected $partner_id;
-
-    /**
-     * Biller UUID
-     *
-     * @var string
-     */
-    protected $biller_uuid;
-
-    /**
      * Constructor
      */
     public function __construct() {
         $settings = get_option( 'wp_travel_engine_settings', array() );
 
-        // Get credentials from settings - FIX: Use correct nested path
+        // Get credentials from settings - Only Client ID and Client Secret required
         $this->client_id     = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
         $this->client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
-        $this->partner_id    = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
-        $this->biller_uuid   = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
 
         // Set API URL
         $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
@@ -71,12 +55,11 @@ class WTE_UPay_API {
      */
     public function create_transaction( $payment_data ) {
         $endpoint = '/transactions';
-        
+
         // Prepare request body according to UPay API specification
         $request_body = array(
             'senderRefId'     => $payment_data['order_id'],
             'tranRequestDate' => $this->get_formatted_date(),
-            'billerUuid'      => $this->biller_uuid,
             'emailAddress'    => $payment_data['email'],
             'amount'          => number_format( (float) $payment_data['amount'], 2, '.', '' ),
             'paymentMethod'   => $payment_data['payment_method'], // 'instapay' or 'UB Online'
@@ -94,30 +77,17 @@ class WTE_UPay_API {
     /**
      * Check transaction status
      *
-     * @param string $transaction_id Transaction UUID.
+     * @param string $transaction_id Transaction ID.
      * @return array|WP_Error
      */
     public function check_status( $transaction_id ) {
-        $endpoint = '/transactions/' . $this->biller_uuid . '/status';
-        
+        $endpoint = '/transactions/status';
+
         $query_params = array(
             'transactionId' => $transaction_id,
         );
 
         $response = $this->make_request( 'GET', $endpoint, null, $query_params );
-
-        return $response;
-    }
-
-    /**
-     * Get biller details
-     *
-     * @return array|WP_Error
-     */
-    public function get_biller_details() {
-        $endpoint = '/billers/' . $this->biller_uuid;
-        
-        $response = $this->make_request( 'GET', $endpoint );
 
         return $response;
     }
@@ -145,7 +115,6 @@ class WTE_UPay_API {
             'Accept'              => 'application/json',
             'X-IBM-Client-Id'     => $this->client_id,
             'X-IBM-Client-Secret' => $this->client_secret,
-            'X-Partner-Id'        => $this->partner_id,
         );
 
         // Prepare request arguments

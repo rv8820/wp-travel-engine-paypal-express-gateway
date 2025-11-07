@@ -81,13 +81,11 @@ This switches to Union Bank's test environment.
 4. Get your test credentials:
    - Client ID (X-IBM-Client-Id)
    - Client Secret (X-IBM-Client-Secret)
-   - Partner ID (X-Partner-Id)
-   - Biller UUID
 
 ### Step 4: Configure Settings
 In the **UPay Settings** page:
 1. Check **"Enable UPay Payment"**
-2. Enter all 4 credentials
+2. Enter both credentials (Client ID and Client Secret)
 3. Click **"Save UPay Settings"**
 4. Verify you see: ✅ Success message and 🧪 TEST MODE indicator
 
@@ -180,9 +178,7 @@ Structure:
   'upay_enable' => '1',
   'upay_settings' => [
     'client_id' => 'your-client-id',
-    'client_secret' => 'your-client-secret',
-    'partner_id' => 'your-partner-id',
-    'biller_uuid' => 'your-biller-uuid'
+    'client_secret' => 'your-client-secret'
   ]
 ]
 ```
@@ -223,12 +219,12 @@ Sends confirmation email
 ### Settings Not Saving?
 1. Check for PHP errors in `wp-content/debug.log`
 2. Enable WP_DEBUG in wp-config.php
-3. Verify all 4 credential fields are filled
+3. Verify both credential fields are filled (Client ID and Client Secret)
 4. Check database write permissions
 
 ### UPay Not Showing at Checkout?
 1. Verify "Enable UPay Payment" is checked in settings
-2. Ensure all 4 credentials are entered
+2. Ensure both credentials are entered (Client ID and Client Secret)
 3. Check if payment gateway is registered:
    - Use the diagnostic tool: `wp-admin/admin.php?page=wte-upay-debug`
 4. Review payment gateways in WTE Settings → Payment
@@ -276,7 +272,7 @@ Use this checklist to verify everything works:
 - [ ] Plugin activated successfully
 - [ ] UPay Settings page accessible in sidebar
 - [ ] Test mode enabled in wp-config.php
-- [ ] All 4 credentials configured
+- [ ] Both credentials configured (Client ID and Client Secret)
 - [ ] Settings saved successfully
 - [ ] Test mode indicator shows "🧪 TEST MODE"
 

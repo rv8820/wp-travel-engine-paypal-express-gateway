@@ -77,7 +77,6 @@ wte-upay/
 Headers:
 - X-IBM-Client-Id: {client_id}
 - X-IBM-Client-Secret: {client_secret}
-- X-Partner-Id: {partner_id}
 - Content-Type: application/json
 - Accept: application/json
 ```
@@ -120,7 +119,7 @@ POST /transactions
 
 #### 2. Check Status
 ```
-GET /transactions/{billerUuid}/status?transactionId={transactionId}
+GET /transactions/status?transactionId={transactionId}
 ```
 
 ---
@@ -133,12 +132,6 @@ GET /transactions/{billerUuid}/status?transactionId={transactionId}
 
 2. **Client Secret** (X-IBM-Client-Secret)
    - From Developer Portal → Application Details
-
-3. **Partner ID** (X-Partner-Id)
-   - Provided by Union Bank after merchant setup
-
-4. **Biller UUID**
-   - Your biller identifier in UPay system
 
 ### WordPress Settings
 ```
@@ -160,8 +153,6 @@ Due to WTE 6.6.9 compatibility issues with the tab registration system, UPay use
 - Enable/Disable UPay gateway
 - Client ID (X-IBM-Client-Id)
 - Client Secret (X-IBM-Client-Secret)
-- Partner ID (X-Partner-Id)
-- Biller UUID
 - View current environment (TEST/PRODUCTION)
 
 **Documentation:**

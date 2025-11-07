@@ -76,14 +76,6 @@ class WTE_UPay_Standalone_Settings {
             ? sanitize_text_field( $input['upay_settings']['client_secret'] )
             : '';
 
-        $settings['upay_settings']['partner_id'] = isset( $input['upay_settings']['partner_id'] )
-            ? sanitize_text_field( $input['upay_settings']['partner_id'] )
-            : '';
-
-        $settings['upay_settings']['biller_uuid'] = isset( $input['upay_settings']['biller_uuid'] )
-            ? sanitize_text_field( $input['upay_settings']['biller_uuid'] )
-            : '';
-
         // Set success message
         add_settings_error(
             'wte_upay_messages',
@@ -116,8 +108,6 @@ class WTE_UPay_Standalone_Settings {
         $upay_enabled = isset( $settings['upay_enable'] ) && $settings['upay_enable'] == '1';
         $client_id = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
         $client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
-        $partner_id = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
-        $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
 
         ?>
         <div class="wrap">
@@ -194,46 +184,6 @@ class WTE_UPay_Standalone_Settings {
                                        class="regular-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Enter your Union Bank UPay Client Secret (X-IBM-Client-Secret) from Developer Portal', 'wte-upay' ); ?>
-                                </p>
-                            </td>
-                        </tr>
-
-                        <!-- Partner ID -->
-                        <tr>
-                            <th scope="row">
-                                <label for="partner_id">
-                                    <?php esc_html_e( 'Partner ID', 'wte-upay' ); ?>
-                                    <span style="color: red;">*</span>
-                                </label>
-                            </th>
-                            <td>
-                                <input type="text"
-                                       name="wp_travel_engine_settings[upay_settings][partner_id]"
-                                       id="partner_id"
-                                       value="<?php echo esc_attr( $partner_id ); ?>"
-                                       class="regular-text" />
-                                <p class="description">
-                                    <?php esc_html_e( 'Enter the Partner ID (X-Partner-Id) provided by Union Bank', 'wte-upay' ); ?>
-                                </p>
-                            </td>
-                        </tr>
-
-                        <!-- Biller UUID -->
-                        <tr>
-                            <th scope="row">
-                                <label for="biller_uuid">
-                                    <?php esc_html_e( 'Biller UUID', 'wte-upay' ); ?>
-                                    <span style="color: red;">*</span>
-                                </label>
-                            </th>
-                            <td>
-                                <input type="text"
-                                       name="wp_travel_engine_settings[upay_settings][biller_uuid]"
-                                       id="biller_uuid"
-                                       value="<?php echo esc_attr( $biller_uuid ); ?>"
-                                       class="regular-text" />
-                                <p class="description">
-                                    <?php esc_html_e( 'Enter your Biller UUID from Union Bank UPay', 'wte-upay' ); ?>
                                 </p>
                             </td>
                         </tr>
