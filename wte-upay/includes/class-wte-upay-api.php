@@ -41,14 +41,54 @@ class WTE_UPay_API {
     protected $access_token;
 
     /**
+     * Partner ID
+     *
+     * @var string
+     */
+    protected $partner_id;
+
+    /**
+     * Partner Username
+     *
+     * @var string
+     */
+    protected $partner_username;
+
+    /**
+     * Partner Password
+     *
+     * @var string
+     */
+    protected $partner_password;
+
+    /**
+     * Biller UUID
+     *
+     * @var string
+     */
+    protected $biller_uuid;
+
+    /**
+     * Biller Reference
+     *
+     * @var string
+     */
+    protected $biller_ref;
+
+    /**
      * Constructor
      */
     public function __construct() {
         $settings = get_option( 'wp_travel_engine_settings', array() );
 
-        // Get credentials from settings - Only Client ID and Client Secret required
-        $this->client_id     = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
-        $this->client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
+        // Get API credentials from settings
+        $this->client_id         = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
+        $this->client_secret     = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
+        $this->partner_id        = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
+        $this->partner_username  = isset( $settings['upay_settings']['partner_username'] ) ? $settings['upay_settings']['partner_username'] : '';
+        $this->partner_password  = isset( $settings['upay_settings']['partner_password'] ) ? $settings['upay_settings']['partner_password'] : '';
+        $this->biller_uuid       = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
+        $this->biller_ref        = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
 
         // Set API URL based on debug/test mode
         if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
@@ -99,16 +139,16 @@ class WTE_UPay_API {
             $token_url = 'https://api.unionbankph.com/partners/sb/partners/v1/oauth2/token';
         }
 
-        // Prepare OAuth2 request
+        // Prepare OAuth2 request using partner credentials
         $response = wp_remote_post( $token_url, array(
             'headers' => array(
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ),
             'body' => array(
-                'grant_type'    => 'client_credentials',
-                'client_id'     => $this->client_id,
-                'client_secret' => $this->client_secret,
-                'scope'         => 'upay_payments',
+                'grant_type' => 'password',
+                'username'   => $this->partner_username,
+                'password'   => $this->partner_password,
+                'scope'      => 'upay_payments',
             ),
             'timeout' => 30,
         ) );
@@ -162,11 +202,8 @@ class WTE_UPay_API {
     public function create_transaction( $payment_data ) {
         $endpoint = '/transactions';
 
-        // Get biller UUID from settings
-        $settings = get_option( 'wp_travel_engine_settings', array() );
-        $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
-
-        if ( empty( $biller_uuid ) ) {
+        // Check if biller UUID is configured
+        if ( empty( $this->biller_uuid ) ) {
             return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
         }
 
@@ -174,7 +211,7 @@ class WTE_UPay_API {
         $request_body = array(
             'senderRefId'     => $payment_data['order_id'],
             'tranRequestDate' => $this->get_formatted_date(),
-            'billerUuid'      => $biller_uuid, // Required field
+            'billerUuid'      => $this->biller_uuid, // Required field
             'emailAddress'    => $payment_data['email'],
             'amount'          => number_format( (float) $payment_data['amount'], 2, '.', '' ),
             'paymentMethod'   => $payment_data['payment_method'], // 'instapay' or 'UB Online'
@@ -197,17 +234,14 @@ class WTE_UPay_API {
      * @return array|WP_Error
      */
     public function check_status( $transaction_id = '', $biller_ref = '' ) {
-        // Get biller UUID from settings (used in path)
-        $settings = get_option( 'wp_travel_engine_settings', array() );
-        $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
-
-        if ( empty( $biller_uuid ) ) {
+        // Check if biller UUID is configured
+        if ( empty( $this->biller_uuid ) ) {
             return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
         }
 
-        // Get billerRef from settings if not provided
+        // Use instance biller_ref if not provided
         if ( empty( $biller_ref ) ) {
-            $biller_ref = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
+            $biller_ref = $this->biller_ref;
         }
 
         if ( empty( $biller_ref ) ) {
@@ -215,7 +249,7 @@ class WTE_UPay_API {
         }
 
         // Endpoint format: /transactions/{billerUuid}/status
-        $endpoint = '/transactions/' . $biller_uuid . '/status';
+        $endpoint = '/transactions/' . $this->biller_uuid . '/status';
 
         // Query parameters
         $query_params = array(
@@ -249,10 +283,6 @@ class WTE_UPay_API {
             return $this->access_token;
         }
 
-        // Get partner ID from settings
-        $settings = get_option( 'wp_travel_engine_settings', array() );
-        $partner_id = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
-
         // Prepare headers with OAuth2 Bearer token
         $headers = array(
             'Content-Type'        => 'application/json',
@@ -260,7 +290,7 @@ class WTE_UPay_API {
             'Authorization'       => 'Bearer ' . $this->access_token,
             'x-ibm-client-id'     => $this->client_id,
             'x-ibm-client-secret' => $this->client_secret,
-            'x-partner-id'        => $partner_id,
+            'x-partner-id'        => $this->partner_id,
         );
 
         // Prepare request arguments

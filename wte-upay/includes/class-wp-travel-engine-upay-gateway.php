@@ -130,29 +130,91 @@ class Wte_UPay_Admin {
 
             // Get booking details
             $booking_meta = get_post_meta( $booking_id, 'wp_travel_engine_booking_setting', true );
-            
+
+            // Extract email and phone from billing_info or travelers_details (serialized data)
+            $email = '';
+            $phone = '';
+
+            // Try billing_info first
+            $billing_info = get_post_meta( $booking_id, 'billing_info', true );
+            if ( ! empty( $billing_info ) ) {
+                $billing_info = maybe_unserialize( $billing_info );
+                if ( is_array( $billing_info ) ) {
+                    $email = isset( $billing_info['email'] ) ? $billing_info['email'] : '';
+                }
+            }
+
+            // Try wptravelengine_billing_details if email not found
+            if ( empty( $email ) ) {
+                $wte_billing = get_post_meta( $booking_id, 'wptravelengine_billing_details', true );
+                if ( ! empty( $wte_billing ) && is_array( $wte_billing ) ) {
+                    $email = isset( $wte_billing['email'] ) ? $wte_billing['email'] : '';
+                }
+            }
+
+            // Try travelers_details for phone
+            $travelers = get_post_meta( $booking_id, 'wptravelengine_travelers_details', true );
+            if ( ! empty( $travelers ) ) {
+                $travelers = maybe_unserialize( $travelers );
+                if ( is_array( $travelers ) && isset( $travelers[0] ) ) {
+                    $first_traveler = is_array( $travelers[0] ) ? $travelers[0] : maybe_unserialize( $travelers[0] );
+                    $phone = isset( $first_traveler['phone'] ) ? $first_traveler['phone'] : '';
+                    // Also get email if not found yet
+                    if ( empty( $email ) && isset( $first_traveler['email'] ) ) {
+                        $email = $first_traveler['email'];
+                    }
+                }
+            }
+
+            // Fallback to booking_setting if still empty
+            if ( empty( $email ) && isset( $booking_meta['place_order']['booking']['email'] ) ) {
+                $email = $booking_meta['place_order']['booking']['email'];
+            }
+            if ( empty( $phone ) && isset( $booking_meta['place_order']['booking']['phone'] ) ) {
+                $phone = $booking_meta['place_order']['booking']['phone'];
+            }
+
+            // Format phone number (remove non-digits, keep last 10 digits)
+            $phone = preg_replace( '/[^0-9]/', '', $phone );
+            if ( strlen( $phone ) > 10 ) {
+                $phone = substr( $phone, -10 ); // Keep last 10 digits
+            }
+
+            // Get trip title
+            $trip_title = 'Trip Booking';
+            if ( isset( $booking_meta['place_order']['tname'] ) ) {
+                $trip_title = $booking_meta['place_order']['tname'];
+            } elseif ( isset( $booking_meta['place_order']['tid'] ) ) {
+                $trip_title = get_the_title( $booking_meta['place_order']['tid'] );
+            }
+
             // Initialize UPay API
             $upay_api = new WTE_UPay_API();
 
             // Prepare payment data
             $payment_data = array(
                 'order_id'       => $upay_api->generate_sender_ref_id( $payment_id ),
-                'email'          => isset( $booking_meta['place_order']['booking']['email'] ) ? $booking_meta['place_order']['booking']['email'] : '',
+                'email'          => $email,
                 'amount'         => $payable['amount'],
                 'payment_method' => 'instapay', // or 'UB Online' - can be made configurable
-                'mobile'         => isset( $booking_meta['place_order']['booking']['phone'] ) ? $booking_meta['place_order']['booking']['phone'] : '',
+                'mobile'         => $phone,
                 'callback_url'   => home_url( '?upay_callback=1&payment_id=' . $payment_id ),
                 'references'     => array(
                     array(
-                        'index' => 0,
+                        'index' => 1,
                         'value' => 'Booking #' . $booking_id,
                     ),
                     array(
-                        'index' => 1,
-                        'value' => get_the_title( $booking_meta['place_order']['tid'] ),
+                        'index' => 2,
+                        'value' => $trip_title,
                     ),
                 ),
             );
+
+            // Debug logging
+            if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                error_log( 'UPay Payment Data: ' . print_r( $payment_data, true ) );
+            }
 
             // Store payment data for verification
             update_post_meta( $payment_id, 'upay_sender_ref_id', $payment_data['order_id'] );
