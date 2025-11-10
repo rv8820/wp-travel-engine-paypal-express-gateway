@@ -184,13 +184,24 @@ class WTE_UPay_API {
      * Check transaction status
      *
      * @param string $transaction_id Transaction ID.
+     * @param string $biller_ref     Biller reference.
      * @return array|WP_Error
      */
-    public function check_status( $transaction_id ) {
-        $endpoint = '/transactions/status';
+    public function check_status( $transaction_id, $biller_ref = '' ) {
+        // Get billerRef from settings if not provided
+        if ( empty( $biller_ref ) ) {
+            $settings = get_option( 'wp_travel_engine_settings', array() );
+            $biller_ref = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
+        }
+
+        if ( empty( $biller_ref ) ) {
+            return new WP_Error( 'upay_missing_biller_ref', __( 'Biller reference not configured', 'wte-upay' ) );
+        }
+
+        $endpoint = '/transactions/' . $biller_ref . '/status';
 
         $query_params = array(
-            'transactionId' => $transaction_id,
+            'billerRef' => $biller_ref,
         );
 
         $response = $this->make_request( 'GET', $endpoint, null, $query_params );
