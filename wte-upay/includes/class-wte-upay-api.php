@@ -34,6 +34,13 @@ class WTE_UPay_API {
     protected $client_secret;
 
     /**
+     * OAuth2 Access Token
+     *
+     * @var string
+     */
+    protected $access_token;
+
+    /**
      * Constructor
      */
     public function __construct() {
@@ -46,11 +53,104 @@ class WTE_UPay_API {
         // Set API URL based on debug/test mode
         if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
             // UAT/Test environment
-            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api-uat.unionbankph.com/ubp/external/upay/payments/v1';
+            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api-uat.unionbankph.com/partners/sb/upay/payments/v1';
         } else {
             // Production environment
-            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
+            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/partners/sb/upay/payments/v1';
         }
+
+        // Get or refresh access token
+        $this->access_token = $this->get_access_token();
+    }
+
+    /**
+     * Get OAuth2 access token (with caching)
+     *
+     * @return string|WP_Error Access token or error
+     */
+    protected function get_access_token() {
+        // Check if we have a cached token
+        $cached_token = get_transient( 'upay_access_token' );
+        if ( $cached_token ) {
+            if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                error_log( 'UPay: Using cached access token' );
+            }
+            return $cached_token;
+        }
+
+        // No cached token, request a new one
+        return $this->refresh_access_token();
+    }
+
+    /**
+     * Request new OAuth2 access token from Union Bank
+     *
+     * @return string|WP_Error Access token or error
+     */
+    protected function refresh_access_token() {
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( 'UPay: Requesting new access token...' );
+        }
+
+        // Determine OAuth endpoint based on environment
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            $token_url = 'https://api-uat.unionbankph.com/partners/sb/partners/v1/oauth2/token';
+        } else {
+            $token_url = 'https://api.unionbankph.com/partners/sb/partners/v1/oauth2/token';
+        }
+
+        // Prepare OAuth2 request
+        $response = wp_remote_post( $token_url, array(
+            'headers' => array(
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ),
+            'body' => array(
+                'grant_type'    => 'client_credentials',
+                'client_id'     => $this->client_id,
+                'client_secret' => $this->client_secret,
+                'scope'         => 'upay_payments',
+            ),
+            'timeout' => 30,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            error_log( 'UPay OAuth2 Error: ' . $response->get_error_message() );
+            return $response;
+        }
+
+        $response_code = wp_remote_retrieve_response_code( $response );
+        $response_body = wp_remote_retrieve_body( $response );
+        $token_data = json_decode( $response_body, true );
+
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( 'UPay OAuth2 Response Code: ' . $response_code );
+            error_log( 'UPay OAuth2 Response: ' . $response_body );
+        }
+
+        if ( $response_code !== 200 || ! isset( $token_data['access_token'] ) ) {
+            $error_message = isset( $token_data['error_description'] ) ? $token_data['error_description'] : 'Failed to obtain access token';
+            error_log( 'UPay OAuth2 Error: ' . $error_message );
+            return new WP_Error( 'upay_auth_error', $error_message );
+        }
+
+        $access_token = $token_data['access_token'];
+        $expires_in = isset( $token_data['expires_in'] ) ? (int) $token_data['expires_in'] : 3600;
+
+        // Cache the token for slightly less than its expiration time (90% of expires_in)
+        $cache_duration = floor( $expires_in * 0.9 );
+        set_transient( 'upay_access_token', $access_token, $cache_duration );
+
+        // Store refresh token if provided
+        if ( isset( $token_data['refresh_token'] ) ) {
+            $refresh_expires = isset( $token_data['refresh_token_expires_in'] ) ? (int) $token_data['refresh_token_expires_in'] : 2592000;
+            set_transient( 'upay_refresh_token', $token_data['refresh_token'], $refresh_expires );
+        }
+
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( 'UPay: New access token obtained and cached for ' . $cache_duration . ' seconds' );
+        }
+
+        return $access_token;
     }
 
     /**
@@ -115,12 +215,16 @@ class WTE_UPay_API {
             $url = add_query_arg( $query_params, $url );
         }
 
-        // Prepare headers according to UPay API specification
+        // Check if we have a valid access token
+        if ( is_wp_error( $this->access_token ) ) {
+            return $this->access_token;
+        }
+
+        // Prepare headers with OAuth2 Bearer token
         $headers = array(
-            'Content-Type'        => 'application/json',
-            'Accept'              => 'application/json',
-            'X-IBM-Client-Id'     => $this->client_id,
-            'X-IBM-Client-Secret' => $this->client_secret,
+            'Content-Type'  => 'application/json',
+            'Accept'        => 'application/json',
+            'Authorization' => 'Bearer ' . $this->access_token,
         );
 
         // Prepare request arguments
