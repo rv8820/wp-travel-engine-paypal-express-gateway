@@ -84,6 +84,18 @@ class WTE_UPay_Standalone_Settings {
             ? sanitize_text_field( $input['upay_settings']['biller_ref'] )
             : '';
 
+        $settings['upay_settings']['partner_id'] = isset( $input['upay_settings']['partner_id'] )
+            ? sanitize_text_field( $input['upay_settings']['partner_id'] )
+            : '';
+
+        $settings['upay_settings']['partner_username'] = isset( $input['upay_settings']['partner_username'] )
+            ? sanitize_text_field( $input['upay_settings']['partner_username'] )
+            : '';
+
+        $settings['upay_settings']['partner_password'] = isset( $input['upay_settings']['partner_password'] )
+            ? sanitize_text_field( $input['upay_settings']['partner_password'] )
+            : '';
+
         // Set success message
         add_settings_error(
             'wte_upay_messages',
@@ -118,6 +130,9 @@ class WTE_UPay_Standalone_Settings {
         $client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
         $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
         $biller_ref = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
+        $partner_id = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
+        $partner_username = isset( $settings['upay_settings']['partner_username'] ) ? $settings['upay_settings']['partner_username'] : '';
+        $partner_password = isset( $settings['upay_settings']['partner_password'] ) ? $settings['upay_settings']['partner_password'] : '';
 
         ?>
         <div class="wrap">
@@ -236,6 +251,80 @@ class WTE_UPay_Standalone_Settings {
                                        placeholder="a18677c4-6848-4a4d-96f6-141746083ccb" />
                                 <p class="description">
                                     <?php esc_html_e( 'Enter your Biller Reference provided by Union Bank (used for transaction status checks)', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <hr>
+
+                <h2><?php esc_html_e( 'Partner Authentication (OAuth2)', 'wte-upay' ); ?></h2>
+                <p class="description" style="margin-top: 0;">
+                    <?php esc_html_e( 'Partner Authentication credentials for OAuth2 token generation. These are provided by Union Bank when you register as a partner.', 'wte-upay' ); ?>
+                </p>
+
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <!-- Partner ID -->
+                        <tr>
+                            <th scope="row">
+                                <label for="partner_id">
+                                    <?php esc_html_e( 'Partner ID (x-partner-id)', 'wte-upay' ); ?>
+                                    <span style="color: red;">*</span>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       name="wp_travel_engine_settings[upay_settings][partner_id]"
+                                       id="partner_id"
+                                       value="<?php echo esc_attr( $partner_id ); ?>"
+                                       class="regular-text"
+                                       placeholder="5dff2cdf-ef15-48fb-a87b-375ebff415bb" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Partner ID linked to your Union Bank corporate account. For Sandbox: 5dff2cdf-ef15-48fb-a87b-375ebff415bb', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- Partner Username -->
+                        <tr>
+                            <th scope="row">
+                                <label for="partner_username">
+                                    <?php esc_html_e( 'Partner Username', 'wte-upay' ); ?>
+                                    <span style="color: red;">*</span>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       name="wp_travel_engine_settings[upay_settings][partner_username]"
+                                       id="partner_username"
+                                       value="<?php echo esc_attr( $partner_username ); ?>"
+                                       class="regular-text"
+                                       placeholder="partner_sb" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Partner username for OAuth2 authentication. For Sandbox: partner_sb', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- Partner Password -->
+                        <tr>
+                            <th scope="row">
+                                <label for="partner_password">
+                                    <?php esc_html_e( 'Partner Password', 'wte-upay' ); ?>
+                                    <span style="color: red;">*</span>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="password"
+                                       name="wp_travel_engine_settings[upay_settings][partner_password]"
+                                       id="partner_password"
+                                       value="<?php echo esc_attr( $partner_password ); ?>"
+                                       class="regular-text"
+                                       placeholder="p@ssw0rd" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Partner password for OAuth2 authentication. For Sandbox: p@ssw0rd', 'wte-upay' ); ?>
                                 </p>
                             </td>
                         </tr>

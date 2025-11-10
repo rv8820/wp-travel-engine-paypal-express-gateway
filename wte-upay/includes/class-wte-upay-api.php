@@ -249,11 +249,18 @@ class WTE_UPay_API {
             return $this->access_token;
         }
 
+        // Get partner ID from settings
+        $settings = get_option( 'wp_travel_engine_settings', array() );
+        $partner_id = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
+
         // Prepare headers with OAuth2 Bearer token
         $headers = array(
-            'Content-Type'  => 'application/json',
-            'Accept'        => 'application/json',
-            'Authorization' => 'Bearer ' . $this->access_token,
+            'Content-Type'        => 'application/json',
+            'Accept'              => 'application/json',
+            'Authorization'       => 'Bearer ' . $this->access_token,
+            'x-ibm-client-id'     => $this->client_id,
+            'x-ibm-client-secret' => $this->client_secret,
+            'x-partner-id'        => $partner_id,
         );
 
         // Prepare request arguments
