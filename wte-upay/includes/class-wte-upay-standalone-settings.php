@@ -76,6 +76,14 @@ class WTE_UPay_Standalone_Settings {
             ? sanitize_text_field( $input['upay_settings']['client_secret'] )
             : '';
 
+        $settings['upay_settings']['biller_uuid'] = isset( $input['upay_settings']['biller_uuid'] )
+            ? sanitize_text_field( $input['upay_settings']['biller_uuid'] )
+            : '';
+
+        $settings['upay_settings']['biller_ref'] = isset( $input['upay_settings']['biller_ref'] )
+            ? sanitize_text_field( $input['upay_settings']['biller_ref'] )
+            : '';
+
         // Set success message
         add_settings_error(
             'wte_upay_messages',
@@ -108,6 +116,8 @@ class WTE_UPay_Standalone_Settings {
         $upay_enabled = isset( $settings['upay_enable'] ) && $settings['upay_enable'] == '1';
         $client_id = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
         $client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
+        $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
+        $biller_ref = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
 
         ?>
         <div class="wrap">
@@ -184,6 +194,48 @@ class WTE_UPay_Standalone_Settings {
                                        class="regular-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Enter your Union Bank UPay Client Secret (X-IBM-Client-Secret) from Developer Portal', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- Biller UUID -->
+                        <tr>
+                            <th scope="row">
+                                <label for="biller_uuid">
+                                    <?php esc_html_e( 'Biller UUID', 'wte-upay' ); ?>
+                                    <span style="color: red;">*</span>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       name="wp_travel_engine_settings[upay_settings][biller_uuid]"
+                                       id="biller_uuid"
+                                       value="<?php echo esc_attr( $biller_uuid ); ?>"
+                                       class="regular-text"
+                                       placeholder="02C16F6A-8329-D696-FEA1-7E51304B8A2E" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Enter your Biller UUID provided by Union Bank (36-character unique identifier)', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- Biller Reference -->
+                        <tr>
+                            <th scope="row">
+                                <label for="biller_ref">
+                                    <?php esc_html_e( 'Biller Reference', 'wte-upay' ); ?>
+                                    <span style="color: red;">*</span>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       name="wp_travel_engine_settings[upay_settings][biller_ref]"
+                                       id="biller_ref"
+                                       value="<?php echo esc_attr( $biller_ref ); ?>"
+                                       class="regular-text"
+                                       placeholder="a18677c4-6848-4a4d-96f6-141746083ccb" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Enter your Biller Reference provided by Union Bank (used for transaction status checks)', 'wte-upay' ); ?>
                                 </p>
                             </td>
                         </tr>

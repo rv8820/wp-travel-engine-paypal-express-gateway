@@ -162,10 +162,19 @@ class WTE_UPay_API {
     public function create_transaction( $payment_data ) {
         $endpoint = '/transactions';
 
+        // Get biller UUID from settings
+        $settings = get_option( 'wp_travel_engine_settings', array() );
+        $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
+
+        if ( empty( $biller_uuid ) ) {
+            return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
+        }
+
         // Prepare request body according to UPay API specification
         $request_body = array(
             'senderRefId'     => $payment_data['order_id'],
             'tranRequestDate' => $this->get_formatted_date(),
+            'billerUuid'      => $biller_uuid, // Required field
             'emailAddress'    => $payment_data['email'],
             'amount'          => number_format( (float) $payment_data['amount'], 2, '.', '' ),
             'paymentMethod'   => $payment_data['payment_method'], // 'instapay' or 'UB Online'
@@ -183,14 +192,21 @@ class WTE_UPay_API {
     /**
      * Check transaction status
      *
-     * @param string $transaction_id Transaction ID.
-     * @param string $biller_ref     Biller reference.
+     * @param string $transaction_id Transaction ID (optional).
+     * @param string $biller_ref     Biller reference (optional).
      * @return array|WP_Error
      */
-    public function check_status( $transaction_id, $biller_ref = '' ) {
+    public function check_status( $transaction_id = '', $biller_ref = '' ) {
+        // Get biller UUID from settings (used in path)
+        $settings = get_option( 'wp_travel_engine_settings', array() );
+        $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
+
+        if ( empty( $biller_uuid ) ) {
+            return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
+        }
+
         // Get billerRef from settings if not provided
         if ( empty( $biller_ref ) ) {
-            $settings = get_option( 'wp_travel_engine_settings', array() );
             $biller_ref = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
         }
 
@@ -198,8 +214,10 @@ class WTE_UPay_API {
             return new WP_Error( 'upay_missing_biller_ref', __( 'Biller reference not configured', 'wte-upay' ) );
         }
 
-        $endpoint = '/transactions/' . $biller_ref . '/status';
+        // Endpoint format: /transactions/{billerUuid}/status
+        $endpoint = '/transactions/' . $biller_uuid . '/status';
 
+        // Query parameters
         $query_params = array(
             'billerRef' => $biller_ref,
         );
