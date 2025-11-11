@@ -44,10 +44,11 @@ if ( ! class_exists( 'WTE_UPay_Checkout' ) ) :
          * Define plugin constants
          */
         private function define_constants() {
-            // UPay API URLs based on documentation
+            // UPay API URLs - Using CORRECT URLs discovered from Postman testing
+            // NOTE: PDF documentation shows OUTDATED URLs that don't work!
             $upay_url = defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG
-                ? 'https://apiuat.unionbankph.com/ubp/external/upay/payments/v1'
-                : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
+                ? 'https://api-uat.unionbankph.com/partners/sb/upay/payments/v1'  // ✅ WORKING UAT URL
+                : 'https://api.unionbankph.com/partners/sb/upay/payments/v1';     // ✅ WORKING PRODUCTION URL
 
             $this->define( 'UPAY_BASE_URL', $upay_url );
             $this->define( 'WP_TRAVEL_ENGINE_UPAY_FILE_PATH', WPTRAVELENGINE_UPAY_FILE__ );

@@ -374,7 +374,7 @@ class WTE_UPay_Standalone_Settings {
                                         <?php esc_html_e( 'Using Union Bank UAT environment for testing.', 'wte-upay' ); ?>
                                         <br>
                                         <?php esc_html_e( 'API URL:', 'wte-upay' ); ?>
-                                        <code>https://apiuat.unionbankph.com/ubp/external/upay/payments/v1</code>
+                                        <code>https://api-uat.unionbankph.com/partners/sb/upay/payments/v1</code>
                                     </p>
                                 <?php else: ?>
                                     <span style="color: #155724; background: #d4edda; padding: 5px 10px; border-radius: 3px;">
@@ -384,7 +384,7 @@ class WTE_UPay_Standalone_Settings {
                                         <?php esc_html_e( 'Using Union Bank production environment.', 'wte-upay' ); ?>
                                         <br>
                                         <?php esc_html_e( 'API URL:', 'wte-upay' ); ?>
-                                        <code>https://api.unionbankph.com/ubp/external/upay/payments/v1</code>
+                                        <code>https://api.unionbankph.com/partners/sb/upay/payments/v1</code>
                                     </p>
                                 <?php endif; ?>
                                 <p class="description" style="margin-top: 10px;">
