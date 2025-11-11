@@ -130,6 +130,11 @@ class WTE_UPay_API {
     protected function refresh_access_token() {
         if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
             error_log( 'UPay: Requesting new access token...' );
+            error_log( 'UPay OAuth2 Config Check:' );
+            error_log( '  - Client ID: ' . ( !empty( $this->client_id ) ? 'Set (' . strlen( $this->client_id ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - Client Secret: ' . ( !empty( $this->client_secret ) ? 'Set (' . strlen( $this->client_secret ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - Partner Username: ' . ( !empty( $this->partner_username ) ? 'Set (' . $this->partner_username . ')' : 'MISSING' ) );
+            error_log( '  - Partner Password: ' . ( !empty( $this->partner_password ) ? 'Set (' . strlen( $this->partner_password ) . ' chars)' : 'MISSING' ) );
         }
 
         // Determine OAuth endpoint based on environment
@@ -139,17 +144,22 @@ class WTE_UPay_API {
             $token_url = 'https://api.unionbankph.com/partners/sb/partners/v1/oauth2/token';
         }
 
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( '  - Token URL: ' . $token_url );
+        }
+
         // Prepare OAuth2 request using partner credentials
         // Based on working Postman configuration
         $response = wp_remote_post( $token_url, array(
             'headers' => array(
-                'Content-Type' => 'application/x-www-form-urlencoded',
+                'Content-Type'        => 'application/x-www-form-urlencoded',
+                'X-IBM-Client-Id'     => $this->client_id,     // IBM API Connect authentication
+                'X-IBM-Client-Secret' => $this->client_secret, // IBM API Connect authentication
             ),
             'body' => array(
                 'grant_type' => 'password',
                 'username'   => $this->partner_username,
                 'password'   => $this->partner_password,
-                'client_id'  => $this->client_id, // Required for OAuth2
                 'scope'      => 'upay_payments',
             ),
             'timeout' => 30,
