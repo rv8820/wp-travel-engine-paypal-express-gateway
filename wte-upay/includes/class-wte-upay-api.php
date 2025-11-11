@@ -85,8 +85,6 @@ class WTE_UPay_API {
         $this->client_id         = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
         $this->client_secret     = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
         $this->partner_id        = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
-        $this->partner_username  = isset( $settings['upay_settings']['partner_username'] ) ? $settings['upay_settings']['partner_username'] : '';
-        $this->partner_password  = isset( $settings['upay_settings']['partner_password'] ) ? $settings['upay_settings']['partner_password'] : '';
         $this->biller_uuid       = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
         $this->biller_ref        = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
 
