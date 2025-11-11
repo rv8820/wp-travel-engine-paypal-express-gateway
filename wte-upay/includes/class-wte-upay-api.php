@@ -129,12 +129,11 @@ class WTE_UPay_API {
      */
     protected function refresh_access_token() {
         if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
-            error_log( 'UPay: Requesting new access token...' );
+            error_log( 'UPay: Requesting new access token using CLIENT CREDENTIALS flow...' );
             error_log( 'UPay OAuth2 Config Check:' );
             error_log( '  - Client ID: ' . ( !empty( $this->client_id ) ? 'Set (' . strlen( $this->client_id ) . ' chars)' : 'MISSING' ) );
             error_log( '  - Client Secret: ' . ( !empty( $this->client_secret ) ? 'Set (' . strlen( $this->client_secret ) . ' chars)' : 'MISSING' ) );
-            error_log( '  - Partner Username: ' . ( !empty( $this->partner_username ) ? 'Set (' . $this->partner_username . ')' : 'MISSING' ) );
-            error_log( '  - Partner Password: ' . ( !empty( $this->partner_password ) ? 'Set (' . strlen( $this->partner_password ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - Partner ID: ' . ( !empty( $this->partner_id ) ? 'Set (' . $this->partner_id . ')' : 'MISSING' ) );
         }
 
         // Determine OAuth endpoint based on environment
@@ -148,8 +147,9 @@ class WTE_UPay_API {
             error_log( '  - Token URL: ' . $token_url );
         }
 
-        // Prepare OAuth2 request using partner credentials
-        // Based on working Postman configuration
+        // Prepare OAuth2 request using CLIENT CREDENTIALS flow
+        // X-IBM-Client-Id and X-IBM-Client-Secret ARE the credentials!
+        // Based on working Postman configuration and UPay API documentation
         $response = wp_remote_post( $token_url, array(
             'headers' => array(
                 'Content-Type'        => 'application/x-www-form-urlencoded',
@@ -157,10 +157,7 @@ class WTE_UPay_API {
                 'X-IBM-Client-Secret' => $this->client_secret, // IBM API Connect authentication
             ),
             'body' => array(
-                'grant_type' => 'password',
-                'username'   => $this->partner_username,
-                'password'   => $this->partner_password,
-                'scope'      => 'upay_payments',
+                'grant_type' => 'client_credentials', // ← FIXED! Was 'password'
             ),
             'timeout' => 30,
         ) );
