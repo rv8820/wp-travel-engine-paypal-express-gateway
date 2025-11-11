@@ -140,6 +140,7 @@ class WTE_UPay_API {
         }
 
         // Prepare OAuth2 request using partner credentials
+        // Based on working Postman configuration
         $response = wp_remote_post( $token_url, array(
             'headers' => array(
                 'Content-Type' => 'application/x-www-form-urlencoded',
@@ -148,6 +149,7 @@ class WTE_UPay_API {
                 'grant_type' => 'password',
                 'username'   => $this->partner_username,
                 'password'   => $this->partner_password,
+                'client_id'  => $this->client_id, // Required for OAuth2
                 'scope'      => 'upay_payments',
             ),
             'timeout' => 30,
