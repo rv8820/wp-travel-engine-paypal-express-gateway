@@ -76,6 +76,18 @@ class WTE_UPay_Standalone_Settings {
             ? sanitize_text_field( $input['upay_settings']['client_secret'] )
             : '';
 
+        $settings['upay_settings']['oauth_username'] = isset( $input['upay_settings']['oauth_username'] )
+            ? sanitize_text_field( $input['upay_settings']['oauth_username'] )
+            : '';
+
+        $settings['upay_settings']['oauth_password'] = isset( $input['upay_settings']['oauth_password'] )
+            ? sanitize_text_field( $input['upay_settings']['oauth_password'] )
+            : '';
+
+        $settings['upay_settings']['oauth_scope'] = isset( $input['upay_settings']['oauth_scope'] )
+            ? sanitize_text_field( $input['upay_settings']['oauth_scope'] )
+            : 'upay_payments';
+
         $settings['upay_settings']['biller_uuid'] = isset( $input['upay_settings']['biller_uuid'] )
             ? sanitize_text_field( $input['upay_settings']['biller_uuid'] )
             : '';
@@ -120,6 +132,9 @@ class WTE_UPay_Standalone_Settings {
         $upay_enabled = isset( $settings['upay_enable'] ) && $settings['upay_enable'] == '1';
         $client_id = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
         $client_secret = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
+        $oauth_username = isset( $settings['upay_settings']['oauth_username'] ) ? $settings['upay_settings']['oauth_username'] : '';
+        $oauth_password = isset( $settings['upay_settings']['oauth_password'] ) ? $settings['upay_settings']['oauth_password'] : '';
+        $oauth_scope = isset( $settings['upay_settings']['oauth_scope'] ) ? $settings['upay_settings']['oauth_scope'] : 'upay_payments';
         $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
         $biller_ref = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
         $partner_id = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
@@ -199,6 +214,66 @@ class WTE_UPay_Standalone_Settings {
                                        class="regular-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Enter your Union Bank UPay Client Secret (X-IBM-Client-Secret) from Developer Portal', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- OAuth Username -->
+                        <tr>
+                            <th scope="row">
+                                <label for="oauth_username">
+                                    <?php esc_html_e( 'OAuth Username', 'wte-upay' ); ?>
+                                    <span style="color: red;">*</span>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       name="wp_travel_engine_settings[upay_settings][oauth_username]"
+                                       id="oauth_username"
+                                       value="<?php echo esc_attr( $oauth_username ); ?>"
+                                       class="regular-text" />
+                                <p class="description">
+                                    <?php esc_html_e( 'OAuth username for password grant authentication', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- OAuth Password -->
+                        <tr>
+                            <th scope="row">
+                                <label for="oauth_password">
+                                    <?php esc_html_e( 'OAuth Password', 'wte-upay' ); ?>
+                                    <span style="color: red;">*</span>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="password"
+                                       name="wp_travel_engine_settings[upay_settings][oauth_password]"
+                                       id="oauth_password"
+                                       value="<?php echo esc_attr( $oauth_password ); ?>"
+                                       class="regular-text" />
+                                <p class="description">
+                                    <?php esc_html_e( 'OAuth password for password grant authentication', 'wte-upay' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- OAuth Scope -->
+                        <tr>
+                            <th scope="row">
+                                <label for="oauth_scope">
+                                    <?php esc_html_e( 'OAuth Scope', 'wte-upay' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       name="wp_travel_engine_settings[upay_settings][oauth_scope]"
+                                       id="oauth_scope"
+                                       value="<?php echo esc_attr( $oauth_scope ); ?>"
+                                       class="regular-text"
+                                       placeholder="upay_payments" />
+                                <p class="description">
+                                    <?php esc_html_e( 'OAuth scope (default: upay_payments)', 'wte-upay' ); ?>
                                 </p>
                             </td>
                         </tr>

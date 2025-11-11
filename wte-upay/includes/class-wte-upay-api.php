@@ -62,6 +62,27 @@ class WTE_UPay_API {
     protected $partner_password;
 
     /**
+     * OAuth Username (for password grant)
+     *
+     * @var string
+     */
+    protected $oauth_username;
+
+    /**
+     * OAuth Password (for password grant)
+     *
+     * @var string
+     */
+    protected $oauth_password;
+
+    /**
+     * OAuth Scope
+     *
+     * @var string
+     */
+    protected $oauth_scope;
+
+    /**
      * Biller UUID
      *
      * @var string
@@ -85,6 +106,9 @@ class WTE_UPay_API {
         $this->client_id         = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
         $this->client_secret     = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
         $this->partner_id        = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
+        $this->oauth_username    = isset( $settings['upay_settings']['oauth_username'] ) ? $settings['upay_settings']['oauth_username'] : '';
+        $this->oauth_password    = isset( $settings['upay_settings']['oauth_password'] ) ? $settings['upay_settings']['oauth_password'] : '';
+        $this->oauth_scope       = isset( $settings['upay_settings']['oauth_scope'] ) ? $settings['upay_settings']['oauth_scope'] : 'upay_payments';
         $this->biller_uuid       = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
         $this->biller_ref        = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
 
@@ -127,11 +151,12 @@ class WTE_UPay_API {
      */
     protected function refresh_access_token() {
         if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
-            error_log( 'UPay: Requesting new access token using CLIENT CREDENTIALS flow...' );
+            error_log( 'UPay: Requesting new access token using PASSWORD GRANT flow...' );
             error_log( 'UPay OAuth2 Config Check:' );
             error_log( '  - Client ID: ' . ( !empty( $this->client_id ) ? 'Set (' . strlen( $this->client_id ) . ' chars)' : 'MISSING' ) );
-            error_log( '  - Client Secret: ' . ( !empty( $this->client_secret ) ? 'Set (' . strlen( $this->client_secret ) . ' chars)' : 'MISSING' ) );
-            error_log( '  - Partner ID: ' . ( !empty( $this->partner_id ) ? 'Set (' . $this->partner_id . ')' : 'MISSING' ) );
+            error_log( '  - OAuth Username: ' . ( !empty( $this->oauth_username ) ? 'Set (' . strlen( $this->oauth_username ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - OAuth Password: ' . ( !empty( $this->oauth_password ) ? 'Set (' . strlen( $this->oauth_password ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - OAuth Scope: ' . ( !empty( $this->oauth_scope ) ? $this->oauth_scope : 'MISSING' ) );
         }
 
         // Determine OAuth endpoint based on environment
@@ -145,17 +170,20 @@ class WTE_UPay_API {
             error_log( '  - Token URL: ' . $token_url );
         }
 
-        // Prepare OAuth2 request using CLIENT CREDENTIALS flow
-        // X-IBM-Client-Id and X-IBM-Client-Secret ARE the credentials!
-        // Based on working Postman configuration and UPay API documentation
+        // Prepare OAuth2 request using PASSWORD grant flow
+        // Based on UPay API documentation curl example:
+        // grant_type=password&client_id=<CLIENT_ID>&username=<USERNAME>&password=<PASSWORD>&scope=<SCOPE>
         $response = wp_remote_post( $token_url, array(
             'headers' => array(
-                'Content-Type'        => 'application/x-www-form-urlencoded',
-                'X-IBM-Client-Id'     => $this->client_id,     // IBM API Connect authentication
-                'X-IBM-Client-Secret' => $this->client_secret, // IBM API Connect authentication
+                'Content-Type' => 'application/x-www-form-urlencoded',
+                'Accept'       => 'application/json',
             ),
             'body' => array(
-                'grant_type' => 'client_credentials', // ← FIXED! Was 'password'
+                'grant_type' => 'password',
+                'client_id'  => $this->client_id,
+                'username'   => $this->oauth_username,
+                'password'   => $this->oauth_password,
+                'scope'      => $this->oauth_scope,
             ),
             'timeout' => 30,
         ) );
