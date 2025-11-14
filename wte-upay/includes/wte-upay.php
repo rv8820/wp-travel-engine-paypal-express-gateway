@@ -188,22 +188,72 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
 
                 // Extract email - check multiple possible locations
                 $email = '';
-                if ( isset( $booking_meta['wptravelengine_billing_details']['billing_email'] ) ) {
-                    $email = $booking_meta['wptravelengine_billing_details']['billing_email'];
-                } elseif ( isset( $booking_meta['billing_info']['email'] ) ) {
-                    $email = $booking_meta['billing_info']['email'];
-                } elseif ( isset( $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['email'] ) ) {
-                    $email = $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['email'];
+
+                // Try wptravelengine_billing_details first (unserialized from index 0)
+                if ( isset( $booking_meta['wptravelengine_billing_details'][0] ) ) {
+                    $billing_details = maybe_unserialize( $booking_meta['wptravelengine_billing_details'][0] );
+                    if ( is_array( $billing_details ) && isset( $billing_details['email'] ) ) {
+                        $email = $billing_details['email'];
+                    }
+                }
+
+                // Fallback to billing_info
+                if ( empty( $email ) && isset( $booking_meta['billing_info'][0] ) ) {
+                    $billing_info = maybe_unserialize( $booking_meta['billing_info'][0] );
+                    if ( is_array( $billing_info ) && isset( $billing_info['email'] ) ) {
+                        $email = $billing_info['email'];
+                    }
+                }
+
+                // Fallback to travelers details
+                if ( empty( $email ) && isset( $booking_meta['wptravelengine_travelers_details'][0] ) ) {
+                    $travelers_details = maybe_unserialize( $booking_meta['wptravelengine_travelers_details'][0] );
+                    if ( is_array( $travelers_details ) && isset( $travelers_details[0]['email'] ) ) {
+                        $email = $travelers_details[0]['email'];
+                    }
+                }
+
+                // Last fallback to booking settings
+                if ( empty( $email ) && isset( $booking_meta['wp_travel_engine_booking_setting'][0] ) ) {
+                    $booking_setting = maybe_unserialize( $booking_meta['wp_travel_engine_booking_setting'][0] );
+                    if ( is_array( $booking_setting ) && isset( $booking_setting['place_order']['booking']['email'] ) ) {
+                        $email = $booking_setting['place_order']['booking']['email'];
+                    }
                 }
 
                 // Extract phone - check multiple possible locations
                 $phone = '';
-                if ( isset( $booking_meta['wptravelengine_billing_details']['billing_phone'] ) ) {
-                    $phone = $booking_meta['wptravelengine_billing_details']['billing_phone'];
-                } elseif ( isset( $booking_meta['billing_info']['phone'] ) ) {
-                    $phone = $booking_meta['billing_info']['phone'];
-                } elseif ( isset( $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['phone'] ) ) {
-                    $phone = $booking_meta['wp_travel_engine_booking_setting']['place_order']['booking']['phone'];
+
+                // Try travelers details first (has phone)
+                if ( isset( $booking_meta['wptravelengine_travelers_details'][0] ) ) {
+                    $travelers_details = maybe_unserialize( $booking_meta['wptravelengine_travelers_details'][0] );
+                    if ( is_array( $travelers_details ) && isset( $travelers_details[0]['phone'] ) ) {
+                        $phone = $travelers_details[0]['phone'];
+                    }
+                }
+
+                // Fallback to billing details
+                if ( empty( $phone ) && isset( $booking_meta['wptravelengine_billing_details'][0] ) ) {
+                    $billing_details = maybe_unserialize( $booking_meta['wptravelengine_billing_details'][0] );
+                    if ( is_array( $billing_details ) && isset( $billing_details['phone'] ) ) {
+                        $phone = $billing_details['phone'];
+                    }
+                }
+
+                // Fallback to billing_info
+                if ( empty( $phone ) && isset( $booking_meta['billing_info'][0] ) ) {
+                    $billing_info = maybe_unserialize( $booking_meta['billing_info'][0] );
+                    if ( is_array( $billing_info ) && isset( $billing_info['phone'] ) ) {
+                        $phone = $billing_info['phone'];
+                    }
+                }
+
+                // Last fallback to booking settings
+                if ( empty( $phone ) && isset( $booking_meta['wp_travel_engine_booking_setting'][0] ) ) {
+                    $booking_setting = maybe_unserialize( $booking_meta['wp_travel_engine_booking_setting'][0] );
+                    if ( is_array( $booking_setting ) && isset( $booking_setting['place_order']['booking']['phone'] ) ) {
+                        $phone = $booking_setting['place_order']['booking']['phone'];
+                    }
                 }
 
                 // Extract trip ID - check cart_info or order_trips
