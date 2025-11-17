@@ -34,11 +34,53 @@ class WTE_UPay_API {
     protected $client_secret;
 
     /**
-     * Partner ID (X-Partner-Id)
+     * OAuth2 Access Token
+     *
+     * @var string
+     */
+    protected $access_token;
+
+    /**
+     * Partner ID
      *
      * @var string
      */
     protected $partner_id;
+
+    /**
+     * Partner Username
+     *
+     * @var string
+     */
+    protected $partner_username;
+
+    /**
+     * Partner Password
+     *
+     * @var string
+     */
+    protected $partner_password;
+
+    /**
+     * OAuth Username (for password grant)
+     *
+     * @var string
+     */
+    protected $oauth_username;
+
+    /**
+     * OAuth Password (for password grant)
+     *
+     * @var string
+     */
+    protected $oauth_password;
+
+    /**
+     * OAuth Scope
+     *
+     * @var string
+     */
+    protected $oauth_scope;
 
     /**
      * Biller UUID
@@ -48,19 +90,142 @@ class WTE_UPay_API {
     protected $biller_uuid;
 
     /**
+     * Biller Reference
+     *
+     * @var string
+     */
+    protected $biller_ref;
+
+    /**
      * Constructor
      */
     public function __construct() {
         $settings = get_option( 'wp_travel_engine_settings', array() );
-        
-        // Get credentials from settings
-        $this->client_id     = isset( $settings['upay_client_id'] ) ? $settings['upay_client_id'] : '';
-        $this->client_secret = isset( $settings['upay_client_secret'] ) ? $settings['upay_client_secret'] : '';
-        $this->partner_id    = isset( $settings['upay_partner_id'] ) ? $settings['upay_partner_id'] : '';
-        $this->biller_uuid   = isset( $settings['upay_biller_uuid'] ) ? $settings['upay_biller_uuid'] : '';
-        
-        // Set API URL
-        $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/ubp/external/upay/payments/v1';
+
+        // Get API credentials from settings
+        $this->client_id         = isset( $settings['upay_settings']['client_id'] ) ? $settings['upay_settings']['client_id'] : '';
+        $this->client_secret     = isset( $settings['upay_settings']['client_secret'] ) ? $settings['upay_settings']['client_secret'] : '';
+        $this->partner_id        = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
+        $this->oauth_username    = isset( $settings['upay_settings']['oauth_username'] ) ? $settings['upay_settings']['oauth_username'] : '';
+        $this->oauth_password    = isset( $settings['upay_settings']['oauth_password'] ) ? $settings['upay_settings']['oauth_password'] : '';
+        $this->oauth_scope       = isset( $settings['upay_settings']['oauth_scope'] ) ? $settings['upay_settings']['oauth_scope'] : 'upay_payments';
+        $this->biller_uuid       = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
+        $this->biller_ref        = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
+
+        // Set API URL based on debug/test mode
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            // UAT/Test environment
+            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api-uat.unionbankph.com/partners/sb/upay/payments/v1';
+        } else {
+            // Production environment
+            $this->api_url = defined( 'UPAY_BASE_URL' ) ? UPAY_BASE_URL : 'https://api.unionbankph.com/partners/sb/upay/payments/v1';
+        }
+
+        // Get or refresh access token
+        $this->access_token = $this->get_access_token();
+    }
+
+    /**
+     * Get OAuth2 access token (with caching)
+     *
+     * @return string|WP_Error Access token or error
+     */
+    protected function get_access_token() {
+        // Check if we have a cached token
+        $cached_token = get_transient( 'upay_access_token' );
+        if ( $cached_token ) {
+            if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+                error_log( 'UPay: Using cached access token' );
+            }
+            return $cached_token;
+        }
+
+        // No cached token, request a new one
+        return $this->refresh_access_token();
+    }
+
+    /**
+     * Request new OAuth2 access token from Union Bank
+     *
+     * @return string|WP_Error Access token or error
+     */
+    protected function refresh_access_token() {
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( 'UPay: Requesting new access token using PASSWORD GRANT flow...' );
+            error_log( 'UPay OAuth2 Config Check:' );
+            error_log( '  - Client ID: ' . ( !empty( $this->client_id ) ? 'Set (' . strlen( $this->client_id ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - OAuth Username: ' . ( !empty( $this->oauth_username ) ? 'Set (' . strlen( $this->oauth_username ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - OAuth Password: ' . ( !empty( $this->oauth_password ) ? 'Set (' . strlen( $this->oauth_password ) . ' chars)' : 'MISSING' ) );
+            error_log( '  - OAuth Scope: ' . ( !empty( $this->oauth_scope ) ? $this->oauth_scope : 'MISSING' ) );
+        }
+
+        // Determine OAuth endpoint based on environment
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            $token_url = 'https://api-uat.unionbankph.com/partners/sb/partners/v1/oauth2/token';
+        } else {
+            $token_url = 'https://api.unionbankph.com/partners/sb/partners/v1/oauth2/token';
+        }
+
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( '  - Token URL: ' . $token_url );
+        }
+
+        // Prepare OAuth2 request using PASSWORD grant flow
+        // Based on UPay API documentation curl example:
+        // grant_type=password&client_id=<CLIENT_ID>&username=<USERNAME>&password=<PASSWORD>&scope=<SCOPE>
+        $response = wp_remote_post( $token_url, array(
+            'headers' => array(
+                'Content-Type' => 'application/x-www-form-urlencoded',
+                'Accept'       => 'application/json',
+            ),
+            'body' => array(
+                'grant_type' => 'password',
+                'client_id'  => $this->client_id,
+                'username'   => $this->oauth_username,
+                'password'   => $this->oauth_password,
+                'scope'      => $this->oauth_scope,
+            ),
+            'timeout' => 30,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            error_log( 'UPay OAuth2 Error: ' . $response->get_error_message() );
+            return $response;
+        }
+
+        $response_code = wp_remote_retrieve_response_code( $response );
+        $response_body = wp_remote_retrieve_body( $response );
+        $token_data = json_decode( $response_body, true );
+
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( 'UPay OAuth2 Response Code: ' . $response_code );
+            error_log( 'UPay OAuth2 Response: ' . $response_body );
+        }
+
+        if ( $response_code !== 200 || ! isset( $token_data['access_token'] ) ) {
+            $error_message = isset( $token_data['error_description'] ) ? $token_data['error_description'] : 'Failed to obtain access token';
+            error_log( 'UPay OAuth2 Error: ' . $error_message );
+            return new WP_Error( 'upay_auth_error', $error_message );
+        }
+
+        $access_token = $token_data['access_token'];
+        $expires_in = isset( $token_data['expires_in'] ) ? (int) $token_data['expires_in'] : 3600;
+
+        // Cache the token for slightly less than its expiration time (90% of expires_in)
+        $cache_duration = floor( $expires_in * 0.9 );
+        set_transient( 'upay_access_token', $access_token, $cache_duration );
+
+        // Store refresh token if provided
+        if ( isset( $token_data['refresh_token'] ) ) {
+            $refresh_expires = isset( $token_data['refresh_token_expires_in'] ) ? (int) $token_data['refresh_token_expires_in'] : 2592000;
+            set_transient( 'upay_refresh_token', $token_data['refresh_token'], $refresh_expires );
+        }
+
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( 'UPay: New access token obtained and cached for ' . $cache_duration . ' seconds' );
+        }
+
+        return $access_token;
     }
 
     /**
@@ -71,12 +236,17 @@ class WTE_UPay_API {
      */
     public function create_transaction( $payment_data ) {
         $endpoint = '/transactions';
-        
+
+        // Check if biller UUID is configured
+        if ( empty( $this->biller_uuid ) ) {
+            return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
+        }
+
         // Prepare request body according to UPay API specification
         $request_body = array(
             'senderRefId'     => $payment_data['order_id'],
             'tranRequestDate' => $this->get_formatted_date(),
-            'billerUuid'      => $this->biller_uuid,
+            'billerUuid'      => $this->biller_uuid, // Required field
             'emailAddress'    => $payment_data['email'],
             'amount'          => number_format( (float) $payment_data['amount'], 2, '.', '' ),
             'paymentMethod'   => $payment_data['payment_method'], // 'instapay' or 'UB Online'
@@ -94,30 +264,34 @@ class WTE_UPay_API {
     /**
      * Check transaction status
      *
-     * @param string $transaction_id Transaction UUID.
+     * @param string $transaction_id Transaction ID (optional).
+     * @param string $biller_ref     Biller reference (optional).
      * @return array|WP_Error
      */
-    public function check_status( $transaction_id ) {
+    public function check_status( $transaction_id = '', $biller_ref = '' ) {
+        // Check if biller UUID is configured
+        if ( empty( $this->biller_uuid ) ) {
+            return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
+        }
+
+        // Use instance biller_ref if not provided
+        if ( empty( $biller_ref ) ) {
+            $biller_ref = $this->biller_ref;
+        }
+
+        if ( empty( $biller_ref ) ) {
+            return new WP_Error( 'upay_missing_biller_ref', __( 'Biller reference not configured', 'wte-upay' ) );
+        }
+
+        // Endpoint format: /transactions/{billerUuid}/status
         $endpoint = '/transactions/' . $this->biller_uuid . '/status';
-        
+
+        // Query parameters
         $query_params = array(
-            'transactionId' => $transaction_id,
+            'billerRef' => $biller_ref,
         );
 
         $response = $this->make_request( 'GET', $endpoint, null, $query_params );
-
-        return $response;
-    }
-
-    /**
-     * Get biller details
-     *
-     * @return array|WP_Error
-     */
-    public function get_biller_details() {
-        $endpoint = '/billers/' . $this->biller_uuid;
-        
-        $response = $this->make_request( 'GET', $endpoint );
 
         return $response;
     }
@@ -139,13 +313,19 @@ class WTE_UPay_API {
             $url = add_query_arg( $query_params, $url );
         }
 
-        // Prepare headers according to UPay API specification
+        // Check if we have a valid access token
+        if ( is_wp_error( $this->access_token ) ) {
+            return $this->access_token;
+        }
+
+        // Prepare headers with OAuth2 Bearer token
         $headers = array(
             'Content-Type'        => 'application/json',
             'Accept'              => 'application/json',
-            'X-IBM-Client-Id'     => $this->client_id,
-            'X-IBM-Client-Secret' => $this->client_secret,
-            'X-Partner-Id'        => $this->partner_id,
+            'Authorization'       => 'Bearer ' . $this->access_token,
+            'x-ibm-client-id'     => $this->client_id,
+            'x-ibm-client-secret' => $this->client_secret,
+            'x-partner-id'        => $this->partner_id,
         );
 
         // Prepare request arguments
@@ -206,7 +386,7 @@ class WTE_UPay_API {
      */
     protected function get_formatted_date() {
         $date = new DateTime( 'now', new DateTimeZone( 'Asia/Manila' ) );
-        return $date->format( 'Y-m-d\TH:i:s.v\Z' );
+        return $date->format( 'Y-m-d\TH:i:s.vP' );
     }
 
     /**
