@@ -12,12 +12,7 @@ class Wte_UPay_Admin {
         add_action( 'wte_upay_enable', array( $this, 'wte_upay_enable' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_backend_assets' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_assets' ) );
-        
-        $wp_travel_engine_settings = get_option( 'wp_travel_engine_settings', true );
-        if ( isset( $wp_travel_engine_settings['upay_enable'] ) && $wp_travel_engine_settings['upay_enable'] != '' ) {
-            add_action( 'wte_upay_form', array( $this, 'upay_form' ) );
-        }
-        
+
         add_action( 'add_meta_boxes', array( $this, 'wpte_upay_add_meta_boxes' ) );
         add_action( 'save_post', array( $this, 'wp_travel_engine_upay_meta_box_data' ) );
         add_action( 'init', array( $this, 'load_plugin_textdomain' ) );
@@ -39,7 +34,10 @@ class Wte_UPay_Admin {
         add_filter( 'wpte_settings_get_global_tabs', array( $this, 'add_upay_tab' ) );
     
         add_action( 'wte_payment_gateway_upay_enable', array( $this, 'map_payment_data_to_new_booking_structure' ), 10, 3 );
-        
+
+        // Handle UPay callback
+        add_action( 'init', array( $this, 'handle_upay_callback' ) );
+
         // Add this filter to include UPay in REST API settings
         add_filter( 'wptravelengine_rest_payment_gateways', array( $this, 'add_upay_to_rest_settings' ), 10, 2 );
     }
