@@ -445,6 +445,3 @@ class WTE_UPay_Standalone_Settings {
         <?php
     }
 }
-
-// Initialize the standalone settings page
-new WTE_UPay_Standalone_Settings();
