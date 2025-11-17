@@ -73,97 +73,31 @@ class Wte_UPay_Admin {
      */
     public function process_upay_payment( $payment_id, $type = 'full_payment', $gateway = '' ) {
         if ( ! $payment_id ) {
-            error_log( 'UPay: process_upay_payment - No payment ID provided' );
             return;
         }
-
-        error_log( 'UPay: process_upay_payment called - Payment ID: ' . $payment_id . ', Type: ' . $type . ', Gateway: ' . $gateway );
 
         try {
             $booking_id = get_post_meta( $payment_id, 'booking_id', true );
             $booking    = get_post( $booking_id );
             $payable    = get_post_meta( $payment_id, 'payable', true );
 
-            error_log( 'UPay: Booking ID: ' . $booking_id );
-            error_log( 'UPay: Payable amount: ' . print_r( $payable, true ) );
-
             if ( ! $booking || ! $payable ) {
                 throw new Exception( __( 'Invalid booking or payment data', 'wte-upay' ) );
             }
 
-            // Get booking details - try multiple meta keys for compatibility
+            // Get booking details
             $booking_meta = get_post_meta( $booking_id, 'wp_travel_engine_booking_setting', true );
-
-            if ( empty( $booking_meta ) ) {
-                // Try alternative meta key
-                $booking_meta = get_post_meta( $booking_id, 'wp_travel_engine_placeorder_setting', true );
-                error_log( 'UPay: Using alternative booking meta key (wp_travel_engine_placeorder_setting)' );
-            }
-
-            error_log( 'UPay: Full booking meta: ' . print_r( $booking_meta, true ) );
-
+            
             // Initialize UPay API
             $upay_api = new WTE_UPay_API();
-
-            // Extract email and phone with multiple fallback options
-            $email = '';
-            $phone = '';
-
-            // Try different paths for email
-            if ( isset( $booking_meta['place_order']['booking']['email'] ) ) {
-                $email = $booking_meta['place_order']['booking']['email'];
-            } elseif ( isset( $booking_meta['place_order']['email'] ) ) {
-                $email = $booking_meta['place_order']['email'];
-            } elseif ( isset( $booking_meta['booking']['email'] ) ) {
-                $email = $booking_meta['booking']['email'];
-            } elseif ( isset( $booking_meta['email'] ) ) {
-                $email = $booking_meta['email'];
-            }
-
-            // Try different paths for phone
-            if ( isset( $booking_meta['place_order']['booking']['phone'] ) ) {
-                $phone = $booking_meta['place_order']['booking']['phone'];
-            } elseif ( isset( $booking_meta['place_order']['phone'] ) ) {
-                $phone = $booking_meta['place_order']['phone'];
-            } elseif ( isset( $booking_meta['booking']['phone'] ) ) {
-                $phone = $booking_meta['booking']['phone'];
-            } elseif ( isset( $booking_meta['phone'] ) ) {
-                $phone = $booking_meta['phone'];
-            }
-
-            // Additional fallback: try to get from payment meta
-            if ( empty( $email ) ) {
-                $email = get_post_meta( $payment_id, 'billing_email', true );
-                if ( empty( $email ) ) {
-                    $email = get_post_meta( $payment_id, 'wp_travel_engine_booking_setting_email', true );
-                }
-            }
-
-            if ( empty( $phone ) ) {
-                $phone = get_post_meta( $payment_id, 'billing_phone', true );
-                if ( empty( $phone ) ) {
-                    $phone = get_post_meta( $payment_id, 'wp_travel_engine_booking_setting_phone', true );
-                }
-            }
-
-            error_log( 'UPay: Extracted email: ' . $email );
-            error_log( 'UPay: Extracted phone: ' . $phone );
-
-            // Get trip ID for reference
-            $trip_id = '';
-            if ( isset( $booking_meta['place_order']['tid'] ) ) {
-                $trip_id = $booking_meta['place_order']['tid'];
-            } elseif ( isset( $booking_meta['tid'] ) ) {
-                $trip_id = $booking_meta['tid'];
-            }
 
             // Prepare payment data
             $payment_data = array(
                 'order_id'       => $upay_api->generate_sender_ref_id( $payment_id ),
-                'email'          => $email,
+                'email'          => isset( $booking_meta['place_order']['booking']['email'] ) ? $booking_meta['place_order']['booking']['email'] : '',
                 'amount'         => $payable['amount'],
                 'payment_method' => 'instapay', // or 'UB Online' - can be made configurable
-                'mobile'         => $phone,
+                'mobile'         => isset( $booking_meta['place_order']['booking']['phone'] ) ? $booking_meta['place_order']['booking']['phone'] : '',
                 'callback_url'   => home_url( '?upay_callback=1&payment_id=' . $payment_id ),
                 'references'     => array(
                     array(
@@ -172,12 +106,10 @@ class Wte_UPay_Admin {
                     ),
                     array(
                         'index' => 1,
-                        'value' => ! empty( $trip_id ) ? get_the_title( $trip_id ) : 'Trip Booking',
+                        'value' => get_the_title( $booking_meta['place_order']['tid'] ),
                     ),
                 ),
             );
-
-            error_log( 'UPay: Payment Data: ' . print_r( $payment_data, true ) );
 
             // Store payment data for verification
             update_post_meta( $payment_id, 'upay_sender_ref_id', $payment_data['order_id'] );
@@ -249,13 +181,9 @@ class Wte_UPay_Admin {
      * @param string $gateway    Gateway ID.
      */
     public function map_payment_data_to_new_booking_structure( $payment_id, $type = 'full_payment', $gateway = '' ) {
-        error_log( 'UPay: map_payment_data_to_new_booking_structure called - Payment ID: ' . $payment_id . ', Type: ' . $type . ', Gateway: ' . $gateway );
-
         if ( $gateway !== 'upay_enable' ) {
-            error_log( 'UPay: Gateway mismatch, returning. Expected: upay_enable, Got: ' . $gateway );
             return;
         }
-
         $this->process_upay_payment( $payment_id, $type, $gateway );
     }
 
@@ -266,12 +194,9 @@ class Wte_UPay_Admin {
      * @param array $booking_data Booking data array.
      */
     public function upay_handle_payment_process( $booking_data ) {
-        error_log( 'UPay: upay_handle_payment_process called with booking data: ' . print_r( $booking_data, true ) );
-
         // Extract payment ID from booking data
         $payment_id = null;
 
-        // Try different structures for compatibility with various WTE versions
         if ( isset( $booking_data['payment_id'] ) ) {
             $payment_id = $booking_data['payment_id'];
         } elseif ( isset( $booking_data['payment']->ID ) ) {
@@ -281,20 +206,16 @@ class Wte_UPay_Admin {
         }
 
         if ( ! $payment_id ) {
-            error_log( 'UPay: Could not extract payment ID from booking data' );
             return;
         }
 
         // Check if UPay is the selected gateway
         $payment_gateway = get_post_meta( $payment_id, 'wp_travel_engine_payment_gateway', true );
-
         if ( $payment_gateway !== 'upay_enable' ) {
-            error_log( 'UPay: Payment gateway is not UPay (' . $payment_gateway . '), skipping' );
             return;
         }
 
         $payment_type = isset( $booking_data['payment_type'] ) ? $booking_data['payment_type'] : 'full_payment';
-
         $this->process_upay_payment( $payment_id, $payment_type, $payment_gateway );
     }
 
