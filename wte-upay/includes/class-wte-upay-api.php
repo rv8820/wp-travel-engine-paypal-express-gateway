@@ -242,6 +242,19 @@ class WTE_UPay_API {
             return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
         }
 
+        // Sanitize mobile number - remove all non-numeric characters
+        $mobile = preg_replace( '/[^0-9]/', '', $payment_data['mobile'] );
+
+        // Sanitize references - remove special characters that UPay doesn't accept
+        $references = array();
+        foreach ( $payment_data['references'] as $ref ) {
+            $references[] = array(
+                'index' => $ref['index'],
+                // Remove special characters like #, keeping only alphanumeric, spaces, and basic punctuation
+                'value' => preg_replace( '/[^a-zA-Z0-9\s\-_.,]/', '', $ref['value'] )
+            );
+        }
+
         // Prepare request body according to UPay API specification
         $request_body = array(
             'senderRefId'     => $payment_data['order_id'],
@@ -250,9 +263,9 @@ class WTE_UPay_API {
             'emailAddress'    => $payment_data['email'],
             'amount'          => number_format( (float) $payment_data['amount'], 2, '.', '' ),
             'paymentMethod'   => $payment_data['payment_method'], // 'instapay' or 'UB Online'
-            'mobileNumber'    => $payment_data['mobile'],
-            'callbackUrl'     => $payment_data['callback_url'],
-            'references'      => $payment_data['references'], // Array of index/value pairs
+            'mobileNumber'    => $mobile,
+            'callbackUrl'     => $payment_data['callback_url'], // Will be properly encoded by wp_remote_request
+            'references'      => $references,
         );
 
         // Make API request
@@ -380,13 +393,14 @@ class WTE_UPay_API {
 
     /**
      * Get formatted date for UPay API
-     * Format: YYYY-MM-DDTHH:MM:SS.sss+08:00
+     * Format: YYYY-MM-DDTHH:MM:SS.SSS (exactly 23 characters, no timezone)
      *
      * @return string
      */
     protected function get_formatted_date() {
         $date = new DateTime( 'now', new DateTimeZone( 'Asia/Manila' ) );
-        return $date->format( 'Y-m-d\TH:i:s.vP' );
+        // Format: 2025-11-17T18:07:51.636 (exactly 23 characters)
+        return $date->format( 'Y-m-d\TH:i:s.v' );
     }
 
     /**
