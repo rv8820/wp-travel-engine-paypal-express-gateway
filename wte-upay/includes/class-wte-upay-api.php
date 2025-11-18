@@ -245,13 +245,26 @@ class WTE_UPay_API {
         // Sanitize mobile number - remove all non-numeric characters
         $mobile = preg_replace( '/[^0-9]/', '', $payment_data['mobile'] );
 
-        // Sanitize references - remove special characters that UPay doesn't accept
+        // Ensure mobile number has country code (63 for Philippines)
+        // If it starts with 0, replace with 63
+        // If it doesn't start with 63 and is 10 digits, prepend 63
+        if ( ! empty( $mobile ) ) {
+            if ( substr( $mobile, 0, 1 ) === '0' ) {
+                // Replace leading 0 with 63 (e.g., 09171234567 -> 639171234567)
+                $mobile = '63' . substr( $mobile, 1 );
+            } elseif ( substr( $mobile, 0, 2 ) !== '63' && strlen( $mobile ) === 10 ) {
+                // Prepend 63 if it's a 10-digit number without country code
+                $mobile = '63' . $mobile;
+            }
+        }
+
+        // Sanitize references - keep only alphanumeric and spaces (no special chars at all)
         $references = array();
         foreach ( $payment_data['references'] as $ref ) {
             $references[] = array(
-                'index' => $ref['index'],
-                // Remove special characters like #, keeping only alphanumeric, spaces, and basic punctuation
-                'value' => preg_replace( '/[^a-zA-Z0-9\s\-_.,]/', '', $ref['value'] )
+                'index' => (string) $ref['index'],
+                // Keep only letters, numbers, and spaces
+                'value' => preg_replace( '/[^a-zA-Z0-9\s]/', '', $ref['value'] )
             );
         }
 
@@ -350,7 +363,8 @@ class WTE_UPay_API {
 
         // Add body for POST requests
         if ( 'POST' === $method && $body ) {
-            $args['body'] = wp_json_encode( $body );
+            // Use JSON_UNESCAPED_SLASHES to prevent escaping forward slashes in callbackUrl
+            $args['body'] = json_encode( $body, JSON_UNESCAPED_SLASHES );
         }
 
         // Log request in debug mode
