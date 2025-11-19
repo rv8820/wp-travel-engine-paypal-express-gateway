@@ -21,6 +21,85 @@ class WTE_UPay_Standalone_Settings {
         add_action( 'admin_menu', array( $this, 'add_settings_page' ), 99 );
         add_action( 'admin_init', array( $this, 'register_settings' ) );
         add_action( 'admin_notices', array( $this, 'show_admin_notices' ) );
+        add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
+
+        // Filter to override UPay icon in checkout
+        add_filter( 'wptravelengine_payment_gateways', array( $this, 'override_upay_icon' ), 20, 1 );
+    }
+
+    /**
+     * Enqueue admin scripts
+     */
+    public function enqueue_admin_scripts( $hook ) {
+        // Only load on our settings page
+        if ( 'toplevel_page_wte-upay-settings' !== $hook ) {
+            return;
+        }
+
+        // Enqueue WordPress media uploader
+        wp_enqueue_media();
+
+        // Enqueue custom script for media uploader
+        wp_add_inline_script( 'jquery', "
+            jQuery(document).ready(function($) {
+                var mediaUploader;
+
+                $('#upay_icon_upload_button').on('click', function(e) {
+                    e.preventDefault();
+
+                    // If the uploader object has already been created, reopen the dialog
+                    if (mediaUploader) {
+                        mediaUploader.open();
+                        return;
+                    }
+
+                    // Extend the wp.media object
+                    mediaUploader = wp.media.frames.file_frame = wp.media({
+                        title: 'Choose UPay Icon',
+                        button: {
+                            text: 'Choose Icon'
+                        },
+                        multiple: false
+                    });
+
+                    // When a file is selected, grab the URL and set it as the text field's value
+                    mediaUploader.on('select', function() {
+                        var attachment = mediaUploader.state().get('selection').first().toJSON();
+                        $('#upay_icon').val(attachment.url);
+                        $('#upay_icon_preview').html('<img src=\"' + attachment.url + '\" style=\"max-width: 150px; height: auto; margin-top: 10px;\" />');
+                    });
+
+                    // Open the uploader dialog
+                    mediaUploader.open();
+                });
+
+                // Remove icon
+                $('#upay_icon_remove_button').on('click', function(e) {
+                    e.preventDefault();
+                    $('#upay_icon').val('');
+                    $('#upay_icon_preview').html('');
+                });
+            });
+        " );
+    }
+
+    /**
+     * Override UPay icon in checkout
+     */
+    public function override_upay_icon( $gateways ) {
+        if ( ! isset( $gateways['upay_enable'] ) ) {
+            return $gateways;
+        }
+
+        // Get custom icon URL from settings
+        $settings = get_option( 'wp_travel_engine_settings', array() );
+        $custom_icon = isset( $settings['upay_settings']['icon_url'] ) ? $settings['upay_settings']['icon_url'] : '';
+
+        if ( ! empty( $custom_icon ) ) {
+            $gateways['upay_enable']['display_icon'] = esc_url( $custom_icon );
+        }
+
+        return $gateways;
     }
 
     /**
@@ -100,6 +179,10 @@ class WTE_UPay_Standalone_Settings {
             ? sanitize_text_field( $input['upay_settings']['partner_id'] )
             : '';
 
+        $settings['upay_settings']['icon_url'] = isset( $input['upay_settings']['icon_url'] )
+            ? esc_url_raw( $input['upay_settings']['icon_url'] )
+            : '';
+
         // Set success message
         add_settings_error(
             'wte_upay_messages',
@@ -138,6 +221,7 @@ class WTE_UPay_Standalone_Settings {
         $biller_uuid = isset( $settings['upay_settings']['biller_uuid'] ) ? $settings['upay_settings']['biller_uuid'] : '';
         $biller_ref = isset( $settings['upay_settings']['biller_ref'] ) ? $settings['upay_settings']['biller_ref'] : '';
         $partner_id = isset( $settings['upay_settings']['partner_id'] ) ? $settings['upay_settings']['partner_id'] : '';
+        $icon_url = isset( $settings['upay_settings']['icon_url'] ) ? $settings['upay_settings']['icon_url'] : '';
 
         ?>
         <div class="wrap">
@@ -175,6 +259,39 @@ class WTE_UPay_Standalone_Settings {
                                         <?php esc_html_e( 'Enable Union Bank UPay payment gateway for trip bookings', 'wte-upay' ); ?>
                                     </label>
                                 </fieldset>
+                            </td>
+                        </tr>
+
+                        <!-- Icon/Logo Upload -->
+                        <tr>
+                            <th scope="row">
+                                <label for="upay_icon">
+                                    <?php esc_html_e( 'Checkout Icon/Logo', 'wte-upay' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       name="wp_travel_engine_settings[upay_settings][icon_url]"
+                                       id="upay_icon"
+                                       value="<?php echo esc_attr( $icon_url ); ?>"
+                                       class="regular-text"
+                                       placeholder="<?php esc_attr_e( 'Icon URL', 'wte-upay' ); ?>" />
+                                <button type="button" id="upay_icon_upload_button" class="button">
+                                    <?php esc_html_e( 'Upload Icon', 'wte-upay' ); ?>
+                                </button>
+                                <?php if ( ! empty( $icon_url ) ) : ?>
+                                    <button type="button" id="upay_icon_remove_button" class="button">
+                                        <?php esc_html_e( 'Remove', 'wte-upay' ); ?>
+                                    </button>
+                                <?php endif; ?>
+                                <p class="description">
+                                    <?php esc_html_e( 'Upload a custom icon/logo to display at checkout for UPay payment option. Recommended size: 150x50px or similar aspect ratio.', 'wte-upay' ); ?>
+                                </p>
+                                <div id="upay_icon_preview">
+                                    <?php if ( ! empty( $icon_url ) ) : ?>
+                                        <img src="<?php echo esc_url( $icon_url ); ?>" style="max-width: 150px; height: auto; margin-top: 10px;" />
+                                    <?php endif; ?>
+                                </div>
                             </td>
                         </tr>
 
