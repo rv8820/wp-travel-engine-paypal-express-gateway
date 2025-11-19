@@ -242,19 +242,23 @@ class WTE_UPay_API {
             return new WP_Error( 'upay_missing_biller_uuid', __( 'Biller UUID is not configured', 'wte-upay' ) );
         }
 
-        // Sanitize mobile number - remove all non-numeric characters
+        // Sanitize mobile number - must be exactly 10 digits (PH format without country code)
+        // Example: 9287653827 (no +63, no 0 prefix)
         $mobile = preg_replace( '/[^0-9]/', '', $payment_data['mobile'] );
 
-        // Ensure mobile number has country code (63 for Philippines)
-        // If it starts with 0, replace with 63
-        // If it doesn't start with 63 and is 10 digits, prepend 63
         if ( ! empty( $mobile ) ) {
-            if ( substr( $mobile, 0, 1 ) === '0' ) {
-                // Replace leading 0 with 63 (e.g., 09171234567 -> 639171234567)
-                $mobile = '63' . substr( $mobile, 1 );
-            } elseif ( substr( $mobile, 0, 2 ) !== '63' && strlen( $mobile ) === 10 ) {
-                // Prepend 63 if it's a 10-digit number without country code
-                $mobile = '63' . $mobile;
+            // Remove country code if present (63)
+            if ( substr( $mobile, 0, 2 ) === '63' && strlen( $mobile ) === 12 ) {
+                $mobile = substr( $mobile, 2 ); // 639171234567 -> 9171234567
+            }
+            // Remove leading 0 if present
+            elseif ( substr( $mobile, 0, 1 ) === '0' && strlen( $mobile ) === 11 ) {
+                $mobile = substr( $mobile, 1 ); // 09171234567 -> 9171234567
+            }
+
+            // Ensure we have exactly 10 digits
+            if ( strlen( $mobile ) !== 10 ) {
+                error_log( 'UPay Error: Mobile number must be exactly 10 digits. Got: ' . strlen( $mobile ) . ' digits (' . $mobile . ')' );
             }
         }
 
@@ -280,6 +284,12 @@ class WTE_UPay_API {
             'callbackUrl'     => $payment_data['callback_url'], // Will be properly encoded by wp_remote_request
             'references'      => $references,
         );
+
+        // Debug logging for validation
+        if ( defined( 'WP_TRAVEL_ENGINE_PAYMENT_DEBUG' ) && WP_TRAVEL_ENGINE_PAYMENT_DEBUG ) {
+            error_log( 'UPay Mobile Number (should be 10 digits): ' . $mobile . ' (length: ' . strlen( $mobile ) . ')' );
+            error_log( 'UPay Callback URL: ' . $payment_data['callback_url'] );
+        }
 
         // Make API request
         $response = $this->make_request( 'POST', $endpoint, $request_body );
@@ -363,8 +373,8 @@ class WTE_UPay_API {
 
         // Add body for POST requests
         if ( 'POST' === $method && $body ) {
-            // Use JSON_UNESCAPED_SLASHES to prevent escaping forward slashes in callbackUrl
-            $args['body'] = json_encode( $body, JSON_UNESCAPED_SLASHES );
+            // Use JSON_UNESCAPED_SLASHES and JSON_UNESCAPED_UNICODE to prevent URL encoding issues
+            $args['body'] = json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
         }
 
         // Log request in debug mode
