@@ -38,6 +38,13 @@ class Wte_UPay_Admin {
         // Handle UPay callback
         add_action( 'init', array( $this, 'handle_upay_callback' ) );
 
+        // Handle QR code display
+        add_action( 'template_redirect', array( $this, 'display_upay_qr_code' ) );
+
+        // AJAX handler for checking payment status
+        add_action( 'wp_ajax_upay_check_status', array( $this, 'ajax_check_payment_status' ) );
+        add_action( 'wp_ajax_nopriv_upay_check_status', array( $this, 'ajax_check_payment_status' ) );
+
         // Add this filter to include UPay in REST API settings
         add_filter( 'wptravelengine_rest_payment_gateways', array( $this, 'add_upay_to_rest_settings' ), 10, 2 );
     }
@@ -283,6 +290,387 @@ class Wte_UPay_Admin {
                 wp_safe_redirect( $redirect_url );
                 exit;
             }
+        }
+    }
+
+    /**
+     * Display UPay QR code page
+     */
+    public function display_upay_qr_code() {
+        // Check if this is a QR code display request
+        if ( ! isset( $_GET['action'] ) || $_GET['action'] !== 'upay_qr' || ! isset( $_GET['payment_id'] ) ) {
+            return;
+        }
+
+        $payment_id = absint( $_GET['payment_id'] );
+
+        if ( ! $payment_id ) {
+            return;
+        }
+
+        // Get QR code from payment meta
+        // Try WTE 6.0+ first
+        if ( class_exists( '\WPTravelEngine\Core\Models\Post\Payment' ) ) {
+            $payment = \WPTravelEngine\Core\Models\Post\Payment::make_from_id( $payment_id );
+            $qr_code = $payment ? $payment->get_meta( 'upay_qr_code' ) : '';
+            $transaction_id = $payment ? $payment->get_meta( 'upay_transaction_id' ) : '';
+            $booking_id = $payment ? $payment->get_meta( 'booking_id' ) : '';
+        } else {
+            // Fallback to legacy post meta
+            $qr_code = get_post_meta( $payment_id, 'upay_qr_code', true );
+            $transaction_id = get_post_meta( $payment_id, 'upay_transaction_id', true );
+            $booking_id = get_post_meta( $payment_id, 'booking_id', true );
+        }
+
+        if ( empty( $qr_code ) ) {
+            wp_die( __( 'QR code not found. Please try again or contact support.', 'wte-upay' ) );
+        }
+
+        // Poll URL for checking payment status
+        $poll_url = add_query_arg(
+            array(
+                'action' => 'upay_check_status',
+                'payment_id' => $payment_id,
+            ),
+            admin_url( 'admin-ajax.php' )
+        );
+
+        // Return URL after payment
+        $return_url = home_url();
+
+        // Display QR code page
+        $this->render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url );
+        exit;
+    }
+
+    /**
+     * Render QR code page
+     *
+     * @param string $qr_code QR code data (base64 or URL).
+     * @param string $transaction_id Transaction ID.
+     * @param int    $booking_id Booking ID.
+     * @param string $poll_url URL to poll for payment status.
+     * @param string $return_url URL to return after payment.
+     */
+    private function render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url ) {
+        ?>
+        <!DOCTYPE html>
+        <html <?php language_attributes(); ?>>
+        <head>
+            <meta charset="<?php bloginfo( 'charset' ); ?>">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title><?php echo esc_html( get_bloginfo( 'name' ) ); ?> - <?php esc_html_e( 'UPay Payment', 'wte-upay' ); ?></title>
+            <?php wp_head(); ?>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+                    background: #f5f5f5;
+                    margin: 0;
+                    padding: 20px;
+                }
+                .upay-qr-container {
+                    max-width: 600px;
+                    margin: 50px auto;
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    padding: 40px;
+                    text-align: center;
+                }
+                .upay-qr-container h1 {
+                    color: #333;
+                    margin-bottom: 10px;
+                    font-size: 28px;
+                }
+                .upay-qr-container .subtitle {
+                    color: #666;
+                    margin-bottom: 30px;
+                    font-size: 16px;
+                }
+                .qr-code-wrapper {
+                    background: #fff;
+                    padding: 20px;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 8px;
+                    display: inline-block;
+                    margin: 20px 0;
+                }
+                .qr-code-wrapper img {
+                    max-width: 300px;
+                    height: auto;
+                    display: block;
+                }
+                .instructions {
+                    background: #f9f9f9;
+                    border-left: 4px solid #0073aa;
+                    padding: 20px;
+                    margin: 30px 0;
+                    text-align: left;
+                }
+                .instructions h3 {
+                    margin-top: 0;
+                    color: #0073aa;
+                }
+                .instructions ol {
+                    margin: 15px 0;
+                    padding-left: 25px;
+                }
+                .instructions li {
+                    margin: 10px 0;
+                    line-height: 1.6;
+                }
+                .transaction-info {
+                    background: #fff;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    font-size: 14px;
+                }
+                .transaction-info p {
+                    margin: 5px 0;
+                    color: #666;
+                }
+                .transaction-info strong {
+                    color: #333;
+                }
+                .status-checking {
+                    display: none;
+                    background: #fff3cd;
+                    border: 1px solid #ffc107;
+                    border-radius: 4px;
+                    padding: 15px;
+                    margin: 20px 0;
+                }
+                .status-checking.active {
+                    display: block;
+                }
+                .spinner {
+                    border: 3px solid #f3f3f3;
+                    border-top: 3px solid #0073aa;
+                    border-radius: 50%;
+                    width: 20px;
+                    height: 20px;
+                    animation: spin 1s linear infinite;
+                    display: inline-block;
+                    margin-right: 10px;
+                    vertical-align: middle;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                .return-button {
+                    display: inline-block;
+                    background: #0073aa;
+                    color: white;
+                    padding: 12px 30px;
+                    border-radius: 4px;
+                    text-decoration: none;
+                    margin-top: 20px;
+                    transition: background 0.3s;
+                }
+                .return-button:hover {
+                    background: #005a87;
+                    color: white;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="upay-qr-container">
+                <h1><?php esc_html_e( 'Complete Your Payment', 'wte-upay' ); ?></h1>
+                <p class="subtitle"><?php esc_html_e( 'Scan the QR code below using your mobile banking app', 'wte-upay' ); ?></p>
+
+                <div class="qr-code-wrapper">
+                    <?php if ( strpos( $qr_code, 'data:image' ) === 0 || strpos( $qr_code, 'http' ) === 0 ) : ?>
+                        <img src="<?php echo esc_url( $qr_code ); ?>" alt="<?php esc_attr_e( 'UPay QR Code', 'wte-upay' ); ?>" />
+                    <?php else : ?>
+                        <img src="data:image/png;base64,<?php echo esc_attr( $qr_code ); ?>" alt="<?php esc_attr_e( 'UPay QR Code', 'wte-upay' ); ?>" />
+                    <?php endif; ?>
+                </div>
+
+                <?php if ( $transaction_id || $booking_id ) : ?>
+                <div class="transaction-info">
+                    <?php if ( $booking_id ) : ?>
+                    <p><strong><?php esc_html_e( 'Booking ID:', 'wte-upay' ); ?></strong> #<?php echo esc_html( $booking_id ); ?></p>
+                    <?php endif; ?>
+                    <?php if ( $transaction_id ) : ?>
+                    <p><strong><?php esc_html_e( 'Transaction ID:', 'wte-upay' ); ?></strong> <?php echo esc_html( $transaction_id ); ?></p>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
+                <div class="instructions">
+                    <h3><?php esc_html_e( 'How to Pay:', 'wte-upay' ); ?></h3>
+                    <ol>
+                        <li><?php esc_html_e( 'Open your mobile banking app (UnionBank Online, InstaPay-enabled apps, or other supported payment apps)', 'wte-upay' ); ?></li>
+                        <li><?php esc_html_e( 'Select "Scan QR Code" or "Pay with QR"', 'wte-upay' ); ?></li>
+                        <li><?php esc_html_e( 'Scan the QR code shown above', 'wte-upay' ); ?></li>
+                        <li><?php esc_html_e( 'Confirm the payment amount and complete the transaction', 'wte-upay' ); ?></li>
+                        <li><?php esc_html_e( 'Wait for confirmation - you will be automatically redirected once payment is confirmed', 'wte-upay' ); ?></li>
+                    </ol>
+                </div>
+
+                <div class="status-checking" id="statusChecking">
+                    <div class="spinner"></div>
+                    <?php esc_html_e( 'Waiting for payment confirmation...', 'wte-upay' ); ?>
+                </div>
+
+                <a href="<?php echo esc_url( $return_url ); ?>" class="return-button">
+                    <?php esc_html_e( 'Cancel and Return', 'wte-upay' ); ?>
+                </a>
+            </div>
+
+            <script>
+            // Poll for payment status every 5 seconds
+            let pollInterval;
+            let pollCount = 0;
+            const maxPolls = 120; // 10 minutes (120 * 5 seconds)
+
+            function checkPaymentStatus() {
+                pollCount++;
+
+                if (pollCount > maxPolls) {
+                    clearInterval(pollInterval);
+                    document.getElementById('statusChecking').innerHTML = '<?php esc_html_e( 'Payment confirmation timeout. Please check your email for booking confirmation or contact support.', 'wte-upay' ); ?>';
+                    return;
+                }
+
+                fetch('<?php echo esc_url( $poll_url ); ?>', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.data.status === 'completed') {
+                        clearInterval(pollInterval);
+                        document.getElementById('statusChecking').innerHTML = '<?php esc_html_e( 'Payment confirmed! Redirecting...', 'wte-upay' ); ?>';
+                        window.location.href = data.data.redirect_url;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking payment status:', error);
+                });
+            }
+
+            // Start polling after 5 seconds
+            setTimeout(function() {
+                document.getElementById('statusChecking').classList.add('active');
+                checkPaymentStatus();
+                pollInterval = setInterval(checkPaymentStatus, 5000);
+            }, 5000);
+            </script>
+            <?php wp_footer(); ?>
+        </body>
+        </html>
+        <?php
+    }
+
+    /**
+     * AJAX handler to check payment status
+     */
+    public function ajax_check_payment_status() {
+        if ( ! isset( $_POST['payment_id'] ) && ! isset( $_GET['payment_id'] ) ) {
+            wp_send_json_error( array( 'message' => 'Payment ID missing' ) );
+        }
+
+        $payment_id = isset( $_POST['payment_id'] ) ? absint( $_POST['payment_id'] ) : absint( $_GET['payment_id'] );
+
+        if ( ! $payment_id ) {
+            wp_send_json_error( array( 'message' => 'Invalid payment ID' ) );
+        }
+
+        // Get payment status from meta
+        // Try WTE 6.0+ first
+        if ( class_exists( '\WPTravelEngine\Core\Models\Post\Payment' ) ) {
+            $payment = \WPTravelEngine\Core\Models\Post\Payment::make_from_id( $payment_id );
+            $payment_status = $payment ? $payment->get_meta( 'payment_status' ) : '';
+            $transaction_id = $payment ? $payment->get_meta( 'upay_transaction_id' ) : '';
+            $booking_id = $payment ? $payment->get_meta( 'booking_id' ) : '';
+        } else {
+            // Fallback to legacy post meta
+            $payment_status = get_post_meta( $payment_id, 'payment_status', true );
+            $transaction_id = get_post_meta( $payment_id, 'upay_transaction_id', true );
+            $booking_id = get_post_meta( $payment_id, 'booking_id', true );
+        }
+
+        // If payment is still pending and we have a transaction ID, check with UPay API
+        if ( ( empty( $payment_status ) || $payment_status === 'pending' ) && ! empty( $transaction_id ) ) {
+            $upay_api = new WTE_UPay_API();
+            $status_response = $upay_api->check_status( $transaction_id );
+
+            if ( ! is_wp_error( $status_response ) && isset( $status_response['state'] ) ) {
+                $state = strtolower( $status_response['state'] );
+
+                // Update payment meta
+                if ( class_exists( '\WPTravelEngine\Core\Models\Post\Payment' ) && $payment ) {
+                    $payment->set_meta( 'upay_status_response', $status_response );
+                    $payment->set_meta( 'payment_status', $state );
+
+                    if ( in_array( $state, array( 'success', 'completed', 'paid' ), true ) ) {
+                        // Update booking
+                        $booking = \WPTravelEngine\Core\Models\Post\Booking::make_from_id( $booking_id );
+                        if ( $booking ) {
+                            $amount = isset( $status_response['amount'] ) ? (float) $status_response['amount'] : 0;
+
+                            $booking->set_meta( 'wp_travel_engine_booking_status', 'booked' );
+                            $booking->update_paid_amount( $amount );
+                            $booking->update_due_amount( $amount );
+                            $booking->save();
+
+                            // Send confirmation emails
+                            wptravelengine_send_booking_emails( $payment_id, 'order_confirmation', 'all' );
+                        }
+                    }
+
+                    $payment->save();
+                } else {
+                    // Legacy update
+                    update_post_meta( $payment_id, 'upay_status_response', $status_response );
+                    update_post_meta( $payment_id, 'payment_status', $state );
+
+                    if ( in_array( $state, array( 'success', 'completed', 'paid' ), true ) ) {
+                        $booking = get_post( $booking_id );
+                        $amount = isset( $status_response['amount'] ) ? (float) $status_response['amount'] : 0;
+
+                        $booking_meta = array(
+                            'wp_travel_engine_booking_status' => 'booked',
+                            'paid_amount'                     => +$booking->paid_amount + +$amount,
+                            'due_amount'                      => +$booking->due_amount - +$amount,
+                        );
+
+                        WTE_Booking::update_booking( $booking_id, array( 'meta_input' => $booking_meta ) );
+                        WTE_Booking::send_emails( $payment_id, 'order_confirmation', 'all' );
+                    }
+                }
+
+                $payment_status = $state;
+            }
+        }
+
+        // Check if payment is completed
+        if ( in_array( $payment_status, array( 'success', 'completed', 'paid' ), true ) ) {
+            // Generate redirect URL to thank you page
+            $payment_key = function_exists( 'wptravelengine_generate_key' )
+                ? wptravelengine_generate_key( $payment_id )
+                : wp_generate_password( 20, false );
+
+            $redirect_url = add_query_arg(
+                array( 'payment_key' => $payment_key ),
+                function_exists( 'wp_travel_engine_get_booking_confirm_url' )
+                    ? wp_travel_engine_get_booking_confirm_url()
+                    : home_url( '/booking-confirmed' )
+            );
+
+            wp_send_json_success( array(
+                'status' => 'completed',
+                'redirect_url' => $redirect_url,
+            ) );
+        } else {
+            // Payment still pending
+            wp_send_json_success( array(
+                'status' => 'pending',
+            ) );
         }
     }
 
