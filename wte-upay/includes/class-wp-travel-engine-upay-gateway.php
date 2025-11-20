@@ -328,6 +328,68 @@ class Wte_UPay_Admin {
         $paid_amount = get_post_meta( $booking_id, 'paid_amount', true );
         $due_amount = get_post_meta( $booking_id, 'due_amount', true );
 
+        // Get customer details
+        $customer_name = '';
+        $customer_email = '';
+        $customer_phone = '';
+
+        // Try to get from billing details first
+        $billing_details = get_post_meta( $booking_id, 'wptravelengine_billing_details', true );
+        if ( is_array( $billing_details ) ) {
+            $customer_name = isset( $billing_details['fname'] ) && isset( $billing_details['lname'] )
+                ? trim( $billing_details['fname'] . ' ' . $billing_details['lname'] )
+                : ( isset( $billing_details['name'] ) ? $billing_details['name'] : '' );
+            $customer_email = isset( $billing_details['email'] ) ? $billing_details['email'] : '';
+            $customer_phone = isset( $billing_details['phone'] ) ? $billing_details['phone'] : '';
+        }
+
+        // Fallback to travelers details
+        if ( empty( $customer_name ) || empty( $customer_email ) ) {
+            $travelers_details = get_post_meta( $booking_id, 'wptravelengine_travelers_details', true );
+            if ( is_array( $travelers_details ) && isset( $travelers_details[0] ) ) {
+                $first_traveler = $travelers_details[0];
+                if ( empty( $customer_name ) ) {
+                    $customer_name = isset( $first_traveler['fname'] ) && isset( $first_traveler['lname'] )
+                        ? trim( $first_traveler['fname'] . ' ' . $first_traveler['lname'] )
+                        : ( isset( $first_traveler['name'] ) ? $first_traveler['name'] : '' );
+                }
+                if ( empty( $customer_email ) ) {
+                    $customer_email = isset( $first_traveler['email'] ) ? $first_traveler['email'] : '';
+                }
+                if ( empty( $customer_phone ) ) {
+                    $customer_phone = isset( $first_traveler['phone'] ) ? $first_traveler['phone'] : '';
+                }
+            }
+        }
+
+        // Get booking details
+        $booking_details = array();
+
+        // Get trip/package name
+        $order_trips = get_post_meta( $booking_id, 'order_trips', true );
+        if ( is_array( $order_trips ) && ! empty( $order_trips ) ) {
+            $trip = reset( $order_trips );
+            $booking_details['package_name'] = isset( $trip['title'] ) ? $trip['title'] : get_the_title( $trip['ID'] ?? 0 );
+        }
+
+        // Get traveler counts from cart_info
+        if ( is_array( $cart_info ) ) {
+            if ( isset( $cart_info['pax'] ) ) {
+                $booking_details['adults'] = isset( $cart_info['pax']['adults'] ) ? (int) $cart_info['pax']['adults'] : 0;
+                $booking_details['children'] = isset( $cart_info['pax']['children'] ) ? (int) $cart_info['pax']['children'] : 0;
+            } elseif ( isset( $cart_info['traveler'] ) ) {
+                $booking_details['adults'] = isset( $cart_info['traveler']['adults'] ) ? (int) $cart_info['traveler']['adults'] : 0;
+                $booking_details['children'] = isset( $cart_info['traveler']['children'] ) ? (int) $cart_info['traveler']['children'] : 0;
+            }
+        }
+
+        // Get travel dates
+        $booking_settings = get_post_meta( $booking_id, 'wp_travel_engine_booking_setting', true );
+        if ( is_array( $booking_settings ) && isset( $booking_settings['place_order'] ) ) {
+            $place_order = $booking_settings['place_order'];
+            $booking_details['travel_date'] = isset( $place_order['datetime'] ) ? $place_order['datetime'] : '';
+        }
+
         // Poll URL for checking payment status
         $poll_url = add_query_arg(
             array(
@@ -341,7 +403,7 @@ class Wte_UPay_Admin {
         $return_url = home_url();
 
         // Display QR code page
-        $this->render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url, $payment_amount, $payment_type, $total_cost, $due_amount );
+        $this->render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url, $payment_amount, $payment_type, $total_cost, $due_amount, $customer_name, $customer_email, $customer_phone, $booking_details );
         exit;
     }
 
@@ -357,8 +419,12 @@ class Wte_UPay_Admin {
      * @param string $payment_type Payment type (full_payment/partial_payment).
      * @param float  $total_cost Total booking cost.
      * @param float  $due_amount Remaining due amount.
+     * @param string $customer_name Customer name.
+     * @param string $customer_email Customer email.
+     * @param string $customer_phone Customer phone.
+     * @param array  $booking_details Booking details (package, travelers, dates).
      */
-    private function render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url, $payment_amount = 0, $payment_type = '', $total_cost = 0, $due_amount = 0 ) {
+    private function render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url, $payment_amount = 0, $payment_type = '', $total_cost = 0, $due_amount = 0, $customer_name = '', $customer_email = '', $customer_phone = '', $booking_details = array() ) {
         ?>
         <!DOCTYPE html>
         <html <?php language_attributes(); ?>>
@@ -457,6 +523,66 @@ class Wte_UPay_Admin {
                     border-top: 2px solid #ddd;
                     font-size: 16px;
                     font-weight: bold;
+                }
+                .customer-details-box {
+                    background: #f9f9f9;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 6px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    text-align: left;
+                }
+                .customer-details-box h3 {
+                    margin: 0 0 15px 0;
+                    font-size: 18px;
+                    color: #333;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #0073aa;
+                }
+                .customer-details-box .detail-row {
+                    display: flex;
+                    padding: 8px 0;
+                    border-bottom: 1px solid #eee;
+                }
+                .customer-details-box .detail-row:last-child {
+                    border-bottom: none;
+                }
+                .customer-details-box .detail-label {
+                    flex: 0 0 140px;
+                    font-weight: 600;
+                    color: #666;
+                }
+                .customer-details-box .detail-value {
+                    flex: 1;
+                    color: #333;
+                }
+                .booking-info-box {
+                    background: #f0f8ff;
+                    border: 1px solid #b3d9ff;
+                    border-radius: 6px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    text-align: left;
+                }
+                .booking-info-box h3 {
+                    margin: 0 0 15px 0;
+                    font-size: 18px;
+                    color: #0073aa;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #0073aa;
+                }
+                .booking-info-box .detail-row {
+                    display: flex;
+                    padding: 8px 0;
+                }
+                .booking-info-box .detail-label {
+                    flex: 0 0 140px;
+                    font-weight: 600;
+                    color: #0073aa;
+                }
+                .booking-info-box .detail-value {
+                    flex: 1;
+                    color: #333;
                 }
                 .qr-code-wrapper {
                     background: #fff;
@@ -613,6 +739,60 @@ class Wte_UPay_Admin {
                     </table>
                 </div>
                 <?php endif; ?>
+                <?php endif; ?>
+
+                <?php if ( ! empty( $customer_name ) || ! empty( $customer_email ) || ! empty( $customer_phone ) ) : ?>
+                <div class="customer-details-box">
+                    <h3><?php esc_html_e( 'Customer Information', 'wte-upay' ); ?></h3>
+                    <?php if ( ! empty( $customer_name ) ) : ?>
+                    <div class="detail-row">
+                        <div class="detail-label"><?php esc_html_e( 'Name:', 'wte-upay' ); ?></div>
+                        <div class="detail-value"><?php echo esc_html( $customer_name ); ?></div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ( ! empty( $customer_email ) ) : ?>
+                    <div class="detail-row">
+                        <div class="detail-label"><?php esc_html_e( 'Email:', 'wte-upay' ); ?></div>
+                        <div class="detail-value"><?php echo esc_html( $customer_email ); ?></div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ( ! empty( $customer_phone ) ) : ?>
+                    <div class="detail-row">
+                        <div class="detail-label"><?php esc_html_e( 'Phone:', 'wte-upay' ); ?></div>
+                        <div class="detail-value"><?php echo esc_html( $customer_phone ); ?></div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
+                <?php if ( ! empty( $booking_details ) ) : ?>
+                <div class="booking-info-box">
+                    <h3><?php esc_html_e( 'Booking Information', 'wte-upay' ); ?></h3>
+                    <?php if ( ! empty( $booking_details['package_name'] ) ) : ?>
+                    <div class="detail-row">
+                        <div class="detail-label"><?php esc_html_e( 'Package:', 'wte-upay' ); ?></div>
+                        <div class="detail-value"><?php echo esc_html( $booking_details['package_name'] ); ?></div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ( isset( $booking_details['adults'] ) && $booking_details['adults'] > 0 ) : ?>
+                    <div class="detail-row">
+                        <div class="detail-label"><?php esc_html_e( 'Adults:', 'wte-upay' ); ?></div>
+                        <div class="detail-value"><?php echo esc_html( $booking_details['adults'] ); ?></div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ( isset( $booking_details['children'] ) && $booking_details['children'] > 0 ) : ?>
+                    <div class="detail-row">
+                        <div class="detail-label"><?php esc_html_e( 'Children:', 'wte-upay' ); ?></div>
+                        <div class="detail-value"><?php echo esc_html( $booking_details['children'] ); ?></div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if ( ! empty( $booking_details['travel_date'] ) ) : ?>
+                    <div class="detail-row">
+                        <div class="detail-label"><?php esc_html_e( 'Travel Date:', 'wte-upay' ); ?></div>
+                        <div class="detail-value"><?php echo esc_html( date_i18n( get_option( 'date_format' ), strtotime( $booking_details['travel_date'] ) ) ); ?></div>
+                    </div>
+                    <?php endif; ?>
+                </div>
                 <?php endif; ?>
 
                 <div class="qr-code-wrapper">
