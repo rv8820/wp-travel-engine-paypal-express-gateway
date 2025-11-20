@@ -29,7 +29,27 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
          * @var string
          */
         protected $gateway_id = 'upay_enable';
-        
+
+        /**
+         * Display icon URL
+         *
+         * @var string
+         */
+        public $display_icon = '';
+
+        /**
+         * Constructor
+         */
+        public function __construct() {
+            // Set custom icon if available
+            $settings = get_option( 'wp_travel_engine_settings', array() );
+            $custom_icon = isset( $settings['upay_settings']['icon_url'] ) ? $settings['upay_settings']['icon_url'] : '';
+
+            if ( ! empty( $custom_icon ) ) {
+                $this->display_icon = esc_url( $custom_icon );
+            }
+        }
+
         /**
          * Get gateway ID
          *

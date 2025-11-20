@@ -15,13 +15,35 @@ if ( class_exists( '\WPTravelEngine\Payments\Payment_Gateway' ) ) {
      * WTE_Payment_Gateway_UPay class
      */
     class WTE_Payment_Gateway_UPay extends \WPTravelEngine\Payments\Payment_Gateway {
-        
+
         /**
          * Gateway ID
          *
          * @var string
          */
         public $id = 'upay_enable';
+
+        /**
+         * Display icon URL
+         *
+         * @var string
+         */
+        public $display_icon = '';
+
+        /**
+         * Constructor
+         */
+        public function __construct() {
+            // Set custom icon if available
+            $settings = get_option( 'wp_travel_engine_settings', array() );
+            $custom_icon = isset( $settings['upay_settings']['icon_url'] ) ? $settings['upay_settings']['icon_url'] : '';
+
+            if ( ! empty( $custom_icon ) ) {
+                $this->display_icon = esc_url( $custom_icon );
+            }
+
+            parent::__construct();
+        }
 
         /**
          * Get label
