@@ -82,6 +82,21 @@ if ( class_exists( '\WPTravelEngine\Payments\Payment_Gateway' ) ) {
         }
 
         /**
+         * Get display (Checkout) icon.
+         *
+         * @return string
+         */
+        public function get_display_icon(): string {
+            // Return custom icon if set
+            if ( ! empty( $this->display_icon ) ) {
+                return $this->display_icon;
+            }
+
+            // Return default icon URL
+            return plugin_dir_url( WPTRAVELENGINE_UPAY_FILE__ ) . 'assets/images/upay-logo.png';
+        }
+
+        /**
          * Get public label - what customers see
          *
          * @return string

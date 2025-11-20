@@ -46,6 +46,17 @@ if ( class_exists( '\WPTravelEngine\Payments\Payment_Gateway' ) ) {
 		}
 
 		/**
+		 * Get display (Checkout) icon.
+		 *
+		 * @return string
+		 */
+		public function get_display_icon(): string {
+			// PayPal Express doesn't currently support custom icons
+			// Return empty string to maintain compatibility
+			return '';
+		}
+
+		/**
 		 * Process Payment
 		 *
 		 * @param  [type] $booking Booking Object.
