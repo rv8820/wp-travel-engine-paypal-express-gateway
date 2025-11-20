@@ -317,6 +317,17 @@ class Wte_UPay_Admin {
             wp_die( __( 'QR code not found. Please try again or contact support.', 'wte-upay' ) );
         }
 
+        // Get payment amount information
+        $payable = get_post_meta( $payment_id, 'payable', true );
+        $payment_amount = isset( $payable['amount'] ) ? $payable['amount'] : 0;
+        $payment_type = get_post_meta( $payment_id, 'payment_type', true );
+
+        // Get booking totals
+        $cart_info = get_post_meta( $booking_id, 'cart_info', true );
+        $total_cost = isset( $cart_info['total'] ) ? $cart_info['total'] : 0;
+        $paid_amount = get_post_meta( $booking_id, 'paid_amount', true );
+        $due_amount = get_post_meta( $booking_id, 'due_amount', true );
+
         // Poll URL for checking payment status
         $poll_url = add_query_arg(
             array(
@@ -330,7 +341,7 @@ class Wte_UPay_Admin {
         $return_url = home_url();
 
         // Display QR code page
-        $this->render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url );
+        $this->render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url, $payment_amount, $payment_type, $total_cost, $due_amount );
         exit;
     }
 
@@ -342,8 +353,12 @@ class Wte_UPay_Admin {
      * @param int    $booking_id Booking ID.
      * @param string $poll_url URL to poll for payment status.
      * @param string $return_url URL to return after payment.
+     * @param float  $payment_amount Amount being paid.
+     * @param string $payment_type Payment type (full_payment/partial_payment).
+     * @param float  $total_cost Total booking cost.
+     * @param float  $due_amount Remaining due amount.
      */
-    private function render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url ) {
+    private function render_qr_code_page( $qr_code, $transaction_id, $booking_id, $poll_url, $return_url, $payment_amount = 0, $payment_type = '', $total_cost = 0, $due_amount = 0 ) {
         ?>
         <!DOCTYPE html>
         <html <?php language_attributes(); ?>>
@@ -368,6 +383,12 @@ class Wte_UPay_Admin {
                     padding: 40px;
                     text-align: center;
                 }
+                .upay-logo {
+                    max-width: 120px;
+                    height: auto;
+                    margin: 0 auto 20px;
+                    display: block;
+                }
                 .upay-qr-container h1 {
                     color: #333;
                     margin-bottom: 10px;
@@ -377,6 +398,65 @@ class Wte_UPay_Admin {
                     color: #666;
                     margin-bottom: 30px;
                     font-size: 16px;
+                }
+                .payment-amount-box {
+                    background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
+                    color: white;
+                    padding: 25px;
+                    border-radius: 8px;
+                    margin: 20px 0 30px;
+                    box-shadow: 0 4px 12px rgba(0,115,170,0.2);
+                }
+                .payment-amount-box .amount-to-pay {
+                    font-size: 14px;
+                    opacity: 0.9;
+                    margin-bottom: 5px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .payment-amount-box .amount-value {
+                    font-size: 42px;
+                    font-weight: bold;
+                    margin: 10px 0;
+                    line-height: 1;
+                }
+                .payment-amount-box .payment-type-badge {
+                    display: inline-block;
+                    background: rgba(255,255,255,0.2);
+                    padding: 5px 12px;
+                    border-radius: 20px;
+                    font-size: 12px;
+                    margin-top: 8px;
+                }
+                .payment-breakdown {
+                    background: #f9f9f9;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 6px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    text-align: left;
+                }
+                .payment-breakdown table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                .payment-breakdown td {
+                    padding: 8px 0;
+                    font-size: 14px;
+                }
+                .payment-breakdown td:first-child {
+                    color: #666;
+                }
+                .payment-breakdown td:last-child {
+                    text-align: right;
+                    font-weight: 600;
+                    color: #333;
+                }
+                .payment-breakdown .total-row td {
+                    padding-top: 12px;
+                    border-top: 2px solid #ddd;
+                    font-size: 16px;
+                    font-weight: bold;
                 }
                 .qr-code-wrapper {
                     background: #fff;
@@ -483,8 +563,57 @@ class Wte_UPay_Admin {
         </head>
         <body>
             <div class="upay-qr-container">
+                <?php
+                // Get UPay logo URL
+                $upay_logo_url = plugin_dir_url( WPTRAVELENGINE_UPAY_FILE__ ) . 'assets/images/upay-logo.png';
+
+                // Get currency symbol
+                $settings = get_option( 'wp_travel_engine_settings', array() );
+                $currency_code = isset( $settings['currency_code'] ) ? $settings['currency_code'] : 'PHP';
+                $currency_symbol = isset( $settings['currency_symbol'] ) ? html_entity_decode( $settings['currency_symbol'] ) : '₱';
+                ?>
+
+                <img src="<?php echo esc_url( $upay_logo_url ); ?>" alt="UPay" class="upay-logo" />
+
                 <h1><?php esc_html_e( 'Complete Your Payment', 'wte-upay' ); ?></h1>
                 <p class="subtitle"><?php esc_html_e( 'Scan the QR code below using your mobile banking app', 'wte-upay' ); ?></p>
+
+                <?php if ( $payment_amount > 0 ) : ?>
+                <div class="payment-amount-box">
+                    <div class="amount-to-pay"><?php esc_html_e( 'Amount to Pay', 'wte-upay' ); ?></div>
+                    <div class="amount-value">
+                        <?php echo esc_html( $currency_symbol . number_format( $payment_amount, 2 ) ); ?>
+                    </div>
+                    <?php if ( ! empty( $payment_type ) && $payment_type !== 'full_payment' ) : ?>
+                        <div class="payment-type-badge">
+                            <?php echo esc_html( ucwords( str_replace( '_', ' ', $payment_type ) ) ); ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <?php if ( $total_cost > 0 || $due_amount > 0 ) : ?>
+                <div class="payment-breakdown">
+                    <table>
+                        <?php if ( $total_cost > 0 ) : ?>
+                        <tr>
+                            <td><?php esc_html_e( 'Total Booking Cost:', 'wte-upay' ); ?></td>
+                            <td><?php echo esc_html( $currency_symbol . number_format( $total_cost, 2 ) ); ?></td>
+                        </tr>
+                        <?php endif; ?>
+                        <tr>
+                            <td><?php esc_html_e( 'Paying Now:', 'wte-upay' ); ?></td>
+                            <td><?php echo esc_html( $currency_symbol . number_format( $payment_amount, 2 ) ); ?></td>
+                        </tr>
+                        <?php if ( $due_amount > 0 ) : ?>
+                        <tr class="total-row">
+                            <td><?php esc_html_e( 'Remaining Due:', 'wte-upay' ); ?></td>
+                            <td><?php echo esc_html( $currency_symbol . number_format( max( 0, $due_amount - $payment_amount ), 2 ) ); ?></td>
+                        </tr>
+                        <?php endif; ?>
+                    </table>
+                </div>
+                <?php endif; ?>
+                <?php endif; ?>
 
                 <div class="qr-code-wrapper">
                     <?php
