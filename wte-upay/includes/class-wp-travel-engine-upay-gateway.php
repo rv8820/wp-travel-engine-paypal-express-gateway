@@ -391,6 +391,20 @@ class Wte_UPay_Admin {
                     height: auto;
                     display: block;
                 }
+                .qr-code-text {
+                    margin-top: 15px;
+                    padding: 10px;
+                    background: #f5f5f5;
+                    border-radius: 4px;
+                    word-break: break-all;
+                    font-family: monospace;
+                    font-size: 12px;
+                    color: #666;
+                    display: none;
+                }
+                .qr-code-text.show {
+                    display: block;
+                }
                 .instructions {
                     background: #f9f9f9;
                     border-left: 4px solid #0073aa;
@@ -473,11 +487,28 @@ class Wte_UPay_Admin {
                 <p class="subtitle"><?php esc_html_e( 'Scan the QR code below using your mobile banking app', 'wte-upay' ); ?></p>
 
                 <div class="qr-code-wrapper">
-                    <?php if ( strpos( $qr_code, 'data:image' ) === 0 || strpos( $qr_code, 'http' ) === 0 ) : ?>
-                        <img src="<?php echo esc_url( $qr_code ); ?>" alt="<?php esc_attr_e( 'UPay QR Code', 'wte-upay' ); ?>" />
-                    <?php else : ?>
-                        <img src="data:image/png;base64,<?php echo esc_attr( $qr_code ); ?>" alt="<?php esc_attr_e( 'UPay QR Code', 'wte-upay' ); ?>" />
+                    <?php
+                    // Check if QR code is already an image (URL or data URI)
+                    if ( strpos( $qr_code, 'data:image' ) === 0 || strpos( $qr_code, 'http' ) === 0 ) : ?>
+                        <img src="<?php echo esc_url( $qr_code ); ?>"
+                             alt="<?php esc_attr_e( 'UPay QR Code', 'wte-upay' ); ?>"
+                             id="qrCodeImage"
+                             onerror="document.getElementById('qrCodeText').classList.add('show'); this.style.display='none';" />
+                    <?php else :
+                        // QR code is raw EMVCo string - generate image using QR code API
+                        $qr_image_url = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . urlencode( $qr_code );
+                        ?>
+                        <img src="<?php echo esc_url( $qr_image_url ); ?>"
+                             alt="<?php esc_attr_e( 'UPay QR Code', 'wte-upay' ); ?>"
+                             id="qrCodeImage"
+                             onerror="document.getElementById('qrCodeText').classList.add('show'); this.style.display='none';" />
                     <?php endif; ?>
+
+                    <div class="qr-code-text" id="qrCodeText">
+                        <p><strong><?php esc_html_e( 'QR Code Data:', 'wte-upay' ); ?></strong></p>
+                        <p><?php echo esc_html( $qr_code ); ?></p>
+                        <p><small><?php esc_html_e( 'Please use your banking app to scan this code or manually enter the payment details.', 'wte-upay' ); ?></small></p>
+                    </div>
                 </div>
 
                 <?php if ( $transaction_id || $booking_id ) : ?>
