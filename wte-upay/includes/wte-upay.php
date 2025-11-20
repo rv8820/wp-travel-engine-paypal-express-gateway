@@ -361,7 +361,7 @@ if ( version_compare( WP_TRAVEL_ENGINE_VERSION, '6.0.0', '>=' ) ) {
                     'amount'         => $amount,
                     'payment_method' => 'instapay', // Default to InstaPay
                     'mobile'         => $phone,
-                    'callback_url'   => home_url( '?upay_callback=1&payment_id=' . $payment->ID ),
+                    'callback_url'   => home_url( '/checkout/' ),
                     'references'     => array(
                         array(
                             'index' => 0,

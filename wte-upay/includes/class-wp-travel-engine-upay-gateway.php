@@ -105,7 +105,7 @@ class Wte_UPay_Admin {
                 'amount'         => $payable['amount'],
                 'payment_method' => 'instapay', // or 'UB Online' - can be made configurable
                 'mobile'         => isset( $booking_meta['place_order']['booking']['phone'] ) ? $booking_meta['place_order']['booking']['phone'] : '',
-                'callback_url'   => home_url( '?upay_callback=1&payment_id=' . $payment_id ),
+                'callback_url'   => home_url( '/checkout/' ),
                 'references'     => array(
                     array(
                         'index' => 0,
@@ -308,19 +308,10 @@ class Wte_UPay_Admin {
             return;
         }
 
-        // Get QR code from payment meta
-        // Try WTE 6.0+ first
-        if ( class_exists( '\WPTravelEngine\Core\Models\Post\Payment' ) ) {
-            $payment = \WPTravelEngine\Core\Models\Post\Payment::make_from_id( $payment_id );
-            $qr_code = $payment ? $payment->get_meta( 'upay_qr_code' ) : '';
-            $transaction_id = $payment ? $payment->get_meta( 'upay_transaction_id' ) : '';
-            $booking_id = $payment ? $payment->get_meta( 'booking_id' ) : '';
-        } else {
-            // Fallback to legacy post meta
-            $qr_code = get_post_meta( $payment_id, 'upay_qr_code', true );
-            $transaction_id = get_post_meta( $payment_id, 'upay_transaction_id', true );
-            $booking_id = get_post_meta( $payment_id, 'booking_id', true );
-        }
+        // Get QR code from payment meta - use get_post_meta for compatibility
+        $qr_code = get_post_meta( $payment_id, 'upay_qr_code', true );
+        $transaction_id = get_post_meta( $payment_id, 'upay_transaction_id', true );
+        $booking_id = get_post_meta( $payment_id, 'booking_id', true );
 
         if ( empty( $qr_code ) ) {
             wp_die( __( 'QR code not found. Please try again or contact support.', 'wte-upay' ) );
@@ -580,19 +571,10 @@ class Wte_UPay_Admin {
             wp_send_json_error( array( 'message' => 'Invalid payment ID' ) );
         }
 
-        // Get payment status from meta
-        // Try WTE 6.0+ first
-        if ( class_exists( '\WPTravelEngine\Core\Models\Post\Payment' ) ) {
-            $payment = \WPTravelEngine\Core\Models\Post\Payment::make_from_id( $payment_id );
-            $payment_status = $payment ? $payment->get_meta( 'payment_status' ) : '';
-            $transaction_id = $payment ? $payment->get_meta( 'upay_transaction_id' ) : '';
-            $booking_id = $payment ? $payment->get_meta( 'booking_id' ) : '';
-        } else {
-            // Fallback to legacy post meta
-            $payment_status = get_post_meta( $payment_id, 'payment_status', true );
-            $transaction_id = get_post_meta( $payment_id, 'upay_transaction_id', true );
-            $booking_id = get_post_meta( $payment_id, 'booking_id', true );
-        }
+        // Get payment status from meta - use get_post_meta for compatibility
+        $payment_status = get_post_meta( $payment_id, 'payment_status', true );
+        $transaction_id = get_post_meta( $payment_id, 'upay_transaction_id', true );
+        $booking_id = get_post_meta( $payment_id, 'booking_id', true );
 
         // If payment is still pending and we have a transaction ID, check with UPay API
         if ( ( empty( $payment_status ) || $payment_status === 'pending' ) && ! empty( $transaction_id ) ) {
@@ -603,44 +585,31 @@ class Wte_UPay_Admin {
                 $state = strtolower( $status_response['state'] );
 
                 // Update payment meta
-                if ( class_exists( '\WPTravelEngine\Core\Models\Post\Payment' ) && $payment ) {
-                    $payment->set_meta( 'upay_status_response', $status_response );
-                    $payment->set_meta( 'payment_status', $state );
+                update_post_meta( $payment_id, 'upay_status_response', $status_response );
+                update_post_meta( $payment_id, 'payment_status', $state );
 
-                    if ( in_array( $state, array( 'success', 'completed', 'paid' ), true ) ) {
-                        // Update booking
-                        $booking = \WPTravelEngine\Core\Models\Post\Booking::make_from_id( $booking_id );
-                        if ( $booking ) {
-                            $amount = isset( $status_response['amount'] ) ? (float) $status_response['amount'] : 0;
+                // If payment successful, update booking
+                if ( in_array( $state, array( 'success', 'completed', 'paid' ), true ) ) {
+                    $booking = get_post( $booking_id );
+                    $amount = isset( $status_response['amount'] ) ? (float) $status_response['amount'] : 0;
 
-                            $booking->set_meta( 'wp_travel_engine_booking_status', 'booked' );
-                            $booking->update_paid_amount( $amount );
-                            $booking->update_due_amount( $amount );
-                            $booking->save();
+                    if ( $booking ) {
+                        // Update booking status
+                        update_post_meta( $booking_id, 'wp_travel_engine_booking_status', 'booked' );
 
-                            // Send confirmation emails
+                        // Update paid and due amounts
+                        $current_paid = (float) get_post_meta( $booking_id, 'paid_amount', true );
+                        $current_due = (float) get_post_meta( $booking_id, 'due_amount', true );
+
+                        update_post_meta( $booking_id, 'paid_amount', $current_paid + $amount );
+                        update_post_meta( $booking_id, 'due_amount', max( 0, $current_due - $amount ) );
+
+                        // Send confirmation emails
+                        if ( function_exists( 'wptravelengine_send_booking_emails' ) ) {
                             wptravelengine_send_booking_emails( $payment_id, 'order_confirmation', 'all' );
+                        } elseif ( class_exists( 'WTE_Booking' ) && method_exists( 'WTE_Booking', 'send_emails' ) ) {
+                            WTE_Booking::send_emails( $payment_id, 'order_confirmation', 'all' );
                         }
-                    }
-
-                    $payment->save();
-                } else {
-                    // Legacy update
-                    update_post_meta( $payment_id, 'upay_status_response', $status_response );
-                    update_post_meta( $payment_id, 'payment_status', $state );
-
-                    if ( in_array( $state, array( 'success', 'completed', 'paid' ), true ) ) {
-                        $booking = get_post( $booking_id );
-                        $amount = isset( $status_response['amount'] ) ? (float) $status_response['amount'] : 0;
-
-                        $booking_meta = array(
-                            'wp_travel_engine_booking_status' => 'booked',
-                            'paid_amount'                     => +$booking->paid_amount + +$amount,
-                            'due_amount'                      => +$booking->due_amount - +$amount,
-                        );
-
-                        WTE_Booking::update_booking( $booking_id, array( 'meta_input' => $booking_meta ) );
-                        WTE_Booking::send_emails( $payment_id, 'order_confirmation', 'all' );
                     }
                 }
 
