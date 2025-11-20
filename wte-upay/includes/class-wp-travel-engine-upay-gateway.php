@@ -340,11 +340,11 @@ class Wte_UPay_Admin {
                 ? trim( $billing_details['fname'] . ' ' . $billing_details['lname'] )
                 : ( isset( $billing_details['name'] ) ? $billing_details['name'] : '' );
             $customer_email = isset( $billing_details['email'] ) ? $billing_details['email'] : '';
-            $customer_phone = isset( $billing_details['phone'] ) ? $billing_details['phone'] : '';
+            $customer_phone = isset( $billing_details['phone'] ) ? $billing_details['phone'] : ( isset( $billing_details['telephone'] ) ? $billing_details['telephone'] : '' );
         }
 
         // Fallback to travelers details
-        if ( empty( $customer_name ) || empty( $customer_email ) ) {
+        if ( empty( $customer_name ) || empty( $customer_email ) || empty( $customer_phone ) ) {
             $travelers_details = get_post_meta( $booking_id, 'wptravelengine_travelers_details', true );
             if ( is_array( $travelers_details ) && isset( $travelers_details[0] ) ) {
                 $first_traveler = $travelers_details[0];
@@ -357,7 +357,20 @@ class Wte_UPay_Admin {
                     $customer_email = isset( $first_traveler['email'] ) ? $first_traveler['email'] : '';
                 }
                 if ( empty( $customer_phone ) ) {
-                    $customer_phone = isset( $first_traveler['phone'] ) ? $first_traveler['phone'] : '';
+                    $customer_phone = isset( $first_traveler['phone'] ) ? $first_traveler['phone'] : ( isset( $first_traveler['telephone'] ) ? $first_traveler['telephone'] : '' );
+                }
+            }
+        }
+
+        // Last fallback - check billing_info
+        if ( empty( $customer_phone ) || empty( $customer_email ) ) {
+            $billing_info = get_post_meta( $booking_id, 'billing_info', true );
+            if ( is_array( $billing_info ) ) {
+                if ( empty( $customer_phone ) ) {
+                    $customer_phone = isset( $billing_info['phone'] ) ? $billing_info['phone'] : ( isset( $billing_info['telephone'] ) ? $billing_info['telephone'] : '' );
+                }
+                if ( empty( $customer_email ) ) {
+                    $customer_email = isset( $billing_info['email'] ) ? $billing_info['email'] : '';
                 }
             }
         }
@@ -441,12 +454,12 @@ class Wte_UPay_Admin {
                     padding: 20px;
                 }
                 .upay-qr-container {
-                    max-width: 600px;
-                    margin: 50px auto;
+                    max-width: 700px;
+                    margin: 30px auto;
                     background: white;
                     border-radius: 8px;
                     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                    padding: 40px;
+                    padding: 30px;
                     text-align: center;
                 }
                 .upay-logo {
@@ -468,22 +481,22 @@ class Wte_UPay_Admin {
                 .payment-amount-box {
                     background: linear-gradient(135deg, #0073aa 0%, #005a87 100%);
                     color: white;
-                    padding: 25px;
+                    padding: 20px;
                     border-radius: 8px;
-                    margin: 20px 0 30px;
+                    margin: 15px 0 20px;
                     box-shadow: 0 4px 12px rgba(0,115,170,0.2);
                 }
                 .payment-amount-box .amount-to-pay {
-                    font-size: 14px;
+                    font-size: 13px;
                     opacity: 0.9;
                     margin-bottom: 5px;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                 }
                 .payment-amount-box .amount-value {
-                    font-size: 42px;
+                    font-size: 36px;
                     font-weight: bold;
-                    margin: 10px 0;
+                    margin: 8px 0;
                     line-height: 1;
                 }
                 .payment-amount-box .payment-type-badge {
@@ -498,8 +511,8 @@ class Wte_UPay_Admin {
                     background: #f9f9f9;
                     border: 1px solid #e0e0e0;
                     border-radius: 6px;
-                    padding: 15px;
-                    margin: 20px 0;
+                    padding: 12px 15px;
+                    margin: 15px 0;
                     text-align: left;
                 }
                 .payment-breakdown table {
@@ -524,76 +537,55 @@ class Wte_UPay_Admin {
                     font-size: 16px;
                     font-weight: bold;
                 }
-                .customer-details-box {
+                .details-container {
                     background: #f9f9f9;
                     border: 1px solid #e0e0e0;
                     border-radius: 6px;
-                    padding: 20px;
-                    margin: 20px 0;
+                    padding: 15px;
+                    margin: 15px 0;
                     text-align: left;
                 }
-                .customer-details-box h3 {
-                    margin: 0 0 15px 0;
-                    font-size: 18px;
-                    color: #333;
-                    padding-bottom: 10px;
+                .details-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                }
+                @media (max-width: 600px) {
+                    .details-grid {
+                        grid-template-columns: 1fr;
+                    }
+                }
+                .details-section h4 {
+                    margin: 0 0 12px 0;
+                    font-size: 16px;
+                    color: #0073aa;
+                    padding-bottom: 8px;
                     border-bottom: 2px solid #0073aa;
                 }
-                .customer-details-box .detail-row {
+                .details-section .detail-row {
                     display: flex;
-                    padding: 8px 0;
-                    border-bottom: 1px solid #eee;
+                    padding: 6px 0;
+                    font-size: 14px;
                 }
-                .customer-details-box .detail-row:last-child {
-                    border-bottom: none;
-                }
-                .customer-details-box .detail-label {
-                    flex: 0 0 140px;
+                .details-section .detail-label {
+                    flex: 0 0 90px;
                     font-weight: 600;
                     color: #666;
                 }
-                .customer-details-box .detail-value {
-                    flex: 1;
-                    color: #333;
-                }
-                .booking-info-box {
-                    background: #f0f8ff;
-                    border: 1px solid #b3d9ff;
-                    border-radius: 6px;
-                    padding: 20px;
-                    margin: 20px 0;
-                    text-align: left;
-                }
-                .booking-info-box h3 {
-                    margin: 0 0 15px 0;
-                    font-size: 18px;
-                    color: #0073aa;
-                    padding-bottom: 10px;
-                    border-bottom: 2px solid #0073aa;
-                }
-                .booking-info-box .detail-row {
-                    display: flex;
-                    padding: 8px 0;
-                }
-                .booking-info-box .detail-label {
-                    flex: 0 0 140px;
-                    font-weight: 600;
-                    color: #0073aa;
-                }
-                .booking-info-box .detail-value {
+                .details-section .detail-value {
                     flex: 1;
                     color: #333;
                 }
                 .qr-code-wrapper {
                     background: #fff;
-                    padding: 20px;
+                    padding: 15px;
                     border: 2px solid #e0e0e0;
                     border-radius: 8px;
                     display: inline-block;
-                    margin: 20px 0;
+                    margin: 15px 0;
                 }
                 .qr-code-wrapper img {
-                    max-width: 300px;
+                    max-width: 280px;
                     height: auto;
                     display: block;
                 }
@@ -614,32 +606,35 @@ class Wte_UPay_Admin {
                 .instructions {
                     background: #f9f9f9;
                     border-left: 4px solid #0073aa;
-                    padding: 20px;
-                    margin: 30px 0;
+                    padding: 15px;
+                    margin: 15px 0;
                     text-align: left;
                 }
                 .instructions h3 {
                     margin-top: 0;
+                    margin-bottom: 10px;
                     color: #0073aa;
+                    font-size: 16px;
                 }
                 .instructions ol {
-                    margin: 15px 0;
+                    margin: 10px 0;
                     padding-left: 25px;
                 }
                 .instructions li {
-                    margin: 10px 0;
-                    line-height: 1.6;
+                    margin: 6px 0;
+                    line-height: 1.5;
+                    font-size: 14px;
                 }
                 .transaction-info {
                     background: #fff;
                     border: 1px solid #e0e0e0;
                     border-radius: 4px;
-                    padding: 15px;
-                    margin: 20px 0;
-                    font-size: 14px;
+                    padding: 12px;
+                    margin: 15px 0;
+                    font-size: 13px;
                 }
                 .transaction-info p {
-                    margin: 5px 0;
+                    margin: 4px 0;
                     color: #666;
                 }
                 .transaction-info strong {
@@ -741,57 +736,63 @@ class Wte_UPay_Admin {
                 <?php endif; ?>
                 <?php endif; ?>
 
-                <?php if ( ! empty( $customer_name ) || ! empty( $customer_email ) || ! empty( $customer_phone ) ) : ?>
-                <div class="customer-details-box">
-                    <h3><?php esc_html_e( 'Customer Information', 'wte-upay' ); ?></h3>
-                    <?php if ( ! empty( $customer_name ) ) : ?>
-                    <div class="detail-row">
-                        <div class="detail-label"><?php esc_html_e( 'Name:', 'wte-upay' ); ?></div>
-                        <div class="detail-value"><?php echo esc_html( $customer_name ); ?></div>
-                    </div>
-                    <?php endif; ?>
-                    <?php if ( ! empty( $customer_email ) ) : ?>
-                    <div class="detail-row">
-                        <div class="detail-label"><?php esc_html_e( 'Email:', 'wte-upay' ); ?></div>
-                        <div class="detail-value"><?php echo esc_html( $customer_email ); ?></div>
-                    </div>
-                    <?php endif; ?>
-                    <?php if ( ! empty( $customer_phone ) ) : ?>
-                    <div class="detail-row">
-                        <div class="detail-label"><?php esc_html_e( 'Phone:', 'wte-upay' ); ?></div>
-                        <div class="detail-value"><?php echo esc_html( $customer_phone ); ?></div>
-                    </div>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
+                <?php if ( ( ! empty( $customer_name ) || ! empty( $customer_email ) || ! empty( $customer_phone ) ) || ! empty( $booking_details ) ) : ?>
+                <div class="details-container">
+                    <div class="details-grid">
+                        <?php if ( ! empty( $customer_name ) || ! empty( $customer_email ) || ! empty( $customer_phone ) ) : ?>
+                        <div class="details-section">
+                            <h4><?php esc_html_e( 'Customer Info', 'wte-upay' ); ?></h4>
+                            <?php if ( ! empty( $customer_name ) ) : ?>
+                            <div class="detail-row">
+                                <div class="detail-label"><?php esc_html_e( 'Name:', 'wte-upay' ); ?></div>
+                                <div class="detail-value"><?php echo esc_html( $customer_name ); ?></div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ( ! empty( $customer_email ) ) : ?>
+                            <div class="detail-row">
+                                <div class="detail-label"><?php esc_html_e( 'Email:', 'wte-upay' ); ?></div>
+                                <div class="detail-value"><?php echo esc_html( $customer_email ); ?></div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ( ! empty( $customer_phone ) ) : ?>
+                            <div class="detail-row">
+                                <div class="detail-label"><?php esc_html_e( 'Phone:', 'wte-upay' ); ?></div>
+                                <div class="detail-value"><?php echo esc_html( $customer_phone ); ?></div>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
 
-                <?php if ( ! empty( $booking_details ) ) : ?>
-                <div class="booking-info-box">
-                    <h3><?php esc_html_e( 'Booking Information', 'wte-upay' ); ?></h3>
-                    <?php if ( ! empty( $booking_details['package_name'] ) ) : ?>
-                    <div class="detail-row">
-                        <div class="detail-label"><?php esc_html_e( 'Package:', 'wte-upay' ); ?></div>
-                        <div class="detail-value"><?php echo esc_html( $booking_details['package_name'] ); ?></div>
+                        <?php if ( ! empty( $booking_details ) ) : ?>
+                        <div class="details-section">
+                            <h4><?php esc_html_e( 'Booking Info', 'wte-upay' ); ?></h4>
+                            <?php if ( ! empty( $booking_details['package_name'] ) ) : ?>
+                            <div class="detail-row">
+                                <div class="detail-label"><?php esc_html_e( 'Package:', 'wte-upay' ); ?></div>
+                                <div class="detail-value"><?php echo esc_html( $booking_details['package_name'] ); ?></div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ( isset( $booking_details['adults'] ) && $booking_details['adults'] > 0 ) : ?>
+                            <div class="detail-row">
+                                <div class="detail-label"><?php esc_html_e( 'Adults:', 'wte-upay' ); ?></div>
+                                <div class="detail-value"><?php echo esc_html( $booking_details['adults'] ); ?></div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ( isset( $booking_details['children'] ) && $booking_details['children'] > 0 ) : ?>
+                            <div class="detail-row">
+                                <div class="detail-label"><?php esc_html_e( 'Children:', 'wte-upay' ); ?></div>
+                                <div class="detail-value"><?php echo esc_html( $booking_details['children'] ); ?></div>
+                            </div>
+                            <?php endif; ?>
+                            <?php if ( ! empty( $booking_details['travel_date'] ) ) : ?>
+                            <div class="detail-row">
+                                <div class="detail-label"><?php esc_html_e( 'Date:', 'wte-upay' ); ?></div>
+                                <div class="detail-value"><?php echo esc_html( date_i18n( get_option( 'date_format' ), strtotime( $booking_details['travel_date'] ) ) ); ?></div>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
                     </div>
-                    <?php endif; ?>
-                    <?php if ( isset( $booking_details['adults'] ) && $booking_details['adults'] > 0 ) : ?>
-                    <div class="detail-row">
-                        <div class="detail-label"><?php esc_html_e( 'Adults:', 'wte-upay' ); ?></div>
-                        <div class="detail-value"><?php echo esc_html( $booking_details['adults'] ); ?></div>
-                    </div>
-                    <?php endif; ?>
-                    <?php if ( isset( $booking_details['children'] ) && $booking_details['children'] > 0 ) : ?>
-                    <div class="detail-row">
-                        <div class="detail-label"><?php esc_html_e( 'Children:', 'wte-upay' ); ?></div>
-                        <div class="detail-value"><?php echo esc_html( $booking_details['children'] ); ?></div>
-                    </div>
-                    <?php endif; ?>
-                    <?php if ( ! empty( $booking_details['travel_date'] ) ) : ?>
-                    <div class="detail-row">
-                        <div class="detail-label"><?php esc_html_e( 'Travel Date:', 'wte-upay' ); ?></div>
-                        <div class="detail-value"><?php echo esc_html( date_i18n( get_option( 'date_format' ), strtotime( $booking_details['travel_date'] ) ) ); ?></div>
-                    </div>
-                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
 
